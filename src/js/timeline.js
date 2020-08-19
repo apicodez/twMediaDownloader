@@ -1296,7 +1296,8 @@ const
                     timestamp_ms,
                     date,
                     datetime,
-                    text : tweet_status.full_text,
+                    //text : tweet_status.full_text,
+                    text : self.convert_tweet_text_from_tweet_status( tweet_status ),
                     media_type : ( 0 < media_list.length ) ? media_list[ 0 ].media_type : MEDIA_TYPE.nomedia,
                     media_list,
                     reply_count : tweet_status.reply_count,
@@ -1311,6 +1312,27 @@ const
             
             return tweet_info;
         } // end of get_basic_tweet_info()
+        
+        convert_tweet_text_from_tweet_status( tweet_status ) {
+            let tweet_text = tweet_status.full_text;
+            
+            try {
+                let tweet_parts = Array.from( tweet_text ),
+                    url_infos = ( tweet_status.entities || {} ).urls || [];
+                
+                url_infos.map( ( url_info ) => {
+                    tweet_parts[ url_info.indices[ 0 ] ] = url_info.expanded_url;
+                    for ( let index = url_info.indices[ 0 ] + 1; index < url_info.indices[ 1 ]; index ++ ) {
+                        tweet_parts[ index ] = '';
+                    }
+                } );
+                tweet_text = tweet_parts.join( '' );
+            }
+            catch ( error ) {
+                log_debug( 'failed to convert the tweet text:', error, tweet_status );
+            }
+            return tweet_text;
+        } // end of convert_tweet_text_from_tweet_status()
         
         get_media_list_from_tweet_status( tweet_status ) {
             let source_media_infos = [];
