@@ -220,7 +220,7 @@ const
     ID_INC_PER_MSEC = Decimal.pow( 2, 22 ), // ミリ秒毎のID増分
     ID_INC_PER_SEC = ID_INC_PER_MSEC.mul( 1000 ), // 秒毎のID増分
     TWEPOCH_OFFSET_MSEC = 1288834974657,
-    TWEPOCH_OFFSET_SEC = Math.ceil( TWEPOCH_OFFSET_MSEC / 1000 ), // 1288834974.657 sec (2011.11.04 01:42:54(UTC)) (via http://www.slideshare.net/pfi/id-15755280)
+    TWEPOCH_OFFSET_SEC = Math.ceil( TWEPOCH_OFFSET_MSEC / 1000 ), // 1288834974.657 sec (2010.11.04 01:42:54(UTC)) (via http://www.slideshare.net/pfi/id-15755280)
     ID_THRESHOLD = '300000000000000', // 2010.11.04 22時(UTC)頃に、IDが 30000000000以下から300000000000000以上に切り替え
     DEFAULT_UNTIL_ID = '9153891586667446272', // // datetime_to_tweet_id(Date.parse( '2080-01-01T00:00:00.000Z' )) => 9153891586667446272
     
@@ -1401,8 +1401,8 @@ const
             let max_tweet_id = self.requested_max_tweet_id = self.max_tweet_id = parameters.max_tweet_id,
                 max_timestamp_ms = self.requested_max_timestamp_ms = self.max_timestamp_ms = parameters.max_timestamp_ms;
             
-            if ( ! max_tweet_id ) {
-                self.max_tweet_id = convert_utc_msec_to_tweet_id( max_timestamp_ms );
+            if ( ( ! max_tweet_id ) && ( ! max_timestamp_ms ) ) {
+                self.max_tweet_id = convert_utc_msec_to_tweet_id( Date.now() );
             }
             
             let filter_info = self.filter_info = parameters.filter_info || {},
