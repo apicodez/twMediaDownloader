@@ -353,7 +353,7 @@ const
                     /*  4 */ sort_index_bin.substr( 26, 4 ) + '1' + sort_index_bin.substr( 16, 1 ),
                     /*  5 */ sort_index_bin.substr( 35, 2 ) + '1' + sort_index_bin.substr( 23, 3 ),
                     /*  6 */ '1' + sort_index_bin.substr( 30, 5 ),
-                    /*  7 */ sort_index_bin.substr( 38, 5 ) + sort_index_bin.substr( 43, 1 ),
+                    /*  7 */ sort_index_bin.substr( 38, 6 ),
                     /*  8 */ sort_index_bin.substr( 47, 4 ) + '1' + sort_index_bin.substr( 37, 1 ),
                     /*  9 */ '001' + sort_index_bin.substr( 44, 3 ),
                     /* 10 */ '1' + ( '0'.repeat( 5 ) + ( parseInt( sort_index_bin.substr( 51, 5 ), 2 ) + 1 ).toString( 2 ) ).slice( -5 ),
