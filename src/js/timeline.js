@@ -1572,6 +1572,14 @@ const
                 screen_name = self.screen_name = parameters.screen_name;
             
             if ( ( ! max_tweet_id ) && ( max_timestamp_ms ) ) {
+                max_tweet_id = self.max_tweet_id = convert_utc_msec_to_tweet_id( max_timestamp_ms );
+                
+                if ( max_tweet_id === ID_THRESHOLD ) {
+                    max_tweet_id = self.max_tweet_id = null;
+                }
+            }
+            
+            if ( ! max_tweet_id ) {
                 self.api_type_in_use = API_TYPE_IN_USE.search;
             }
             
@@ -1660,10 +1668,14 @@ const
                 max_timestamp_ms = self.max_timestamp_ms,
                 filter_info = self.filter_info,
                 specified_query = self.specified_query = parameters.specified_query || '',
+                keep_since = self.keep_since = !! parameters.keep_since,
                 query_base = specified_query;
             
             // 期間指定コマンドの削除
-            query_base = query_base.replace( /-?(?:since|until|since_id|max_id):[^\s]+(?:\s+OR\s+)?/g, ' ' );
+            query_base = query_base.replace( /-?(?:until|max_id):[^\s]+(?:\s+OR\s+)?/g, ' ' );
+            if ( ! keep_since ) {
+                query_base = query_base.replace( /-?(?:since|since_id):[^\s]+(?:\s+OR\s+)?/g, ' ' );
+            }
             
             if ( filter_info.use_media_filter ) {
                 // 本スクリプトと競合するフィルタの削除
