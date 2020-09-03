@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.12
+// @version         0.1.4.13
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -2937,13 +2937,14 @@ var download_media_timeline = ( function () {
                     
                     self.set_to_hide_added_logline();
                     
-                    var is_limited = is_limited_by_some_factor();
+                    var is_limited = is_limited_by_some_factor(),
+                        note = ( TimelineObject.timeline_status == TIMELINE_STATUS.error ) ? '(timeline-error)' : ( is_limited  ? '(limited)' : '' );
                     
                     if ( self.is_for_likes_timeline || self.is_for_notifications_timeline || self.is_for_bookmarks_timeline ) {
-                        self.log( '[Complete' + ( is_limited  ? '(limited)' : '' ) + ']', min_datetime, '-', max_datetime, ' ( Tweet:', total_tweet_counter, '/ Media:', total_media_counter, ')' );
+                        self.log( '[Complete' + note + ']', min_datetime, '-', max_datetime, ' ( Tweet:', total_tweet_counter, '/ Media:', total_media_counter, ')' );
                     }
                     else {
-                        self.log( '[Complete' + ( is_limited  ? '(limited)' : '' ) + ']', min_id, '-', max_id, ' ( Tweet:', total_tweet_counter, '/ Media:', total_media_counter, ')' );
+                        self.log( '[Complete' + note + ']', min_id, '-', max_id, ' ( Tweet:', total_tweet_counter, '/ Media:', total_media_counter, ')' );
                     }
                     
                     request_save( function () {
@@ -3225,6 +3226,15 @@ var download_media_timeline = ( function () {
                                             responseType : 'arraybuffer',
                                             
                                             onload : ( response ) => {
+                                                if ( response.status < 200 || 300 <= response.status ) {
+                                                    resolve( {
+                                                        error : response.status + ' ' + response.statusText,
+                                                        response,
+                                                    } );
+                                                    
+                                                    return;
+                                                }
+                                                
                                                 resolve( {
                                                     arraybuffer : response.response,
                                                 } );
@@ -3233,10 +3243,42 @@ var download_media_timeline = ( function () {
                                             onerror : ( response ) => {
                                                 resolve( {
                                                     error : response.status + ' ' + response.statusText,
+                                                    response,
                                                 } );
                                             } // end of onerror()
                                         } );
                                     } );
+                                
+                                if ( ( media.media_type == MEDIA_TYPE.image ) && media_result.error && ( ( media_result.response || {} ).status == 404 ) ) {
+                                    log_debug( 'before: media_url=', media_url );
+                                    media_url = media_url.replace( /([?&]name=)orig/, '$1large' );
+                                    log_debug( 'after : media_url=', media_url );
+                                    media_result = await new Promise( ( resolve, reject ) => {
+                                        fetch_url( media_url, {
+                                            responseType : 'arraybuffer',
+                                            
+                                            onload : ( response ) => {
+                                                if ( response.status < 200 || 300 <= response.status ) {
+                                                    resolve( {
+                                                        error : response.status + ' ' + response.statusText,
+                                                        response,
+                                                    } );
+                                                    return;
+                                                }
+                                                resolve( {
+                                                    arraybuffer : response.response,
+                                                } );
+                                            },
+                                            
+                                            onerror : ( response ) => {
+                                                resolve( {
+                                                    error : response.status + ' ' + response.statusText,
+                                                    response,
+                                                } );
+                                            } // end of onerror()
+                                        } );
+                                    } );
+                                }
                                 
                                 if ( media_result.error ) {
                                     download_error = media_result.error;
