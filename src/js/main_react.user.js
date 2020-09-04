@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.13
+// @version         0.1.4.14
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -2528,6 +2528,7 @@ var download_media_timeline = ( function () {
                         gif : filter_info.gif,
                         video : filter_info.video,
                         nomedia : filter_info.nomedia,
+                        include_retweets : filter_info.include_retweets,
                     },
                     
                     zip = null,
