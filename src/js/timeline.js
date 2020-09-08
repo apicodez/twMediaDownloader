@@ -1116,8 +1116,15 @@ const
                 }
                 
                 let tweet_id = entry.content.item.content.tweet.id,
-                    tweet_status = tweet_status_map[ tweet_id ],
-                    user = tweet_status.user = user_map[ tweet_status.user_id_str ],
+                    tweet_status = tweet_status_map[ tweet_id ];
+                
+                if ( ! tweet_status ) {
+                    // 既に削除されたツイートのIDが入ってくる場合がある模様
+                    log_info( 'Tweet information not found: tweet_id=', tweet_id );
+                    return;
+                }
+                
+                let user = tweet_status.user = user_map[ tweet_status.user_id_str ],
                     reacted_info = self.get_tweet_info_from_tweet_status( tweet_status );
                 
                 reacted_info.type = REACTION_TYPE.like;
@@ -1211,8 +1218,15 @@ const
                 }
                 
                 let tweet_id = entry.content.item.content.tweet.id,
-                    tweet_status = tweet_status_map[ tweet_id ],
-                    user = tweet_status.user = user_map[ tweet_status.user_id_str ],
+                    tweet_status = tweet_status_map[ tweet_id ];
+                
+                if ( ! tweet_status ) {
+                    // 既に削除されたツイートのIDが入ってくる場合がある模様
+                    log_info( 'Tweet information not found: tweet_id=', tweet_id );
+                    return;
+                }
+                
+                let user = tweet_status.user = user_map[ tweet_status.user_id_str ],
                     reacted_info = self.get_tweet_info_from_tweet_status( tweet_status );
                 
                 reacted_info.type = REACTION_TYPE.bookmark;
@@ -1306,8 +1320,15 @@ const
                 }
                 
                 let tweet_id = entry.content.item.content.tweet.id,
-                    tweet_status = tweet_status_map[ tweet_id ],
-                    user = tweet_status.user = user_map[ tweet_status.user_id_str ],
+                    tweet_status = tweet_status_map[ tweet_id ];
+                
+                if ( ! tweet_status ) {
+                    // 既に削除されたツイートのIDが入ってくる場合がある模様
+                    log_info( 'Tweet information not found: tweet_id=', tweet_id );
+                    return;
+                }
+                
+                let user = tweet_status.user = user_map[ tweet_status.user_id_str ],
                     tweet_info = self.get_tweet_info_from_tweet_status( tweet_status );
                 
                 tweet_info_list.push( tweet_info );

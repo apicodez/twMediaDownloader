@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.14
+// @version         0.1.4.15
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -2788,7 +2788,7 @@ var download_media_timeline = ( function () {
                             } );
                         }
                         
-                        self.update_status_bar( is_empty_result() ? 'No applicable tweets found.' : 'Done.' );
+                        self.update_status_bar( ( is_empty_result() ? 'No applicable tweets found.' : 'Done.' ) + ( ( TimelineObject.timeline_status == TIMELINE_STATUS.error ) ? ' (timeline-error)' : '' ) );
                         
                         if ( typeof callback == 'function' ) {
                             callback();
@@ -3185,6 +3185,37 @@ var download_media_timeline = ( function () {
                     }
                     
                     if ( 0 < target_tweet_info.media_list.length ) {
+                        const
+                            fetch_media = ( media_url ) => {
+                                return new Promise( ( resolve, reject ) => {
+                                    fetch_url( media_url, {
+                                        responseType : 'arraybuffer',
+                                        
+                                        onload : ( response ) => {
+                                            if ( response.status < 200 || 300 <= response.status ) {
+                                                resolve( {
+                                                    error : response.status + ' ' + response.statusText,
+                                                    response,
+                                                } );
+                                                
+                                                return;
+                                            }
+                                            
+                                            resolve( {
+                                                arraybuffer : response.response,
+                                            } );
+                                        },
+                                        
+                                        onerror : ( response ) => {
+                                            resolve( {
+                                                error : response.status + ' ' + response.statusText,
+                                                response,
+                                            } );
+                                        } // end of onerror()
+                                    } );
+                                } );
+                            };
+                        
                         for ( let media_index = 0; media_index < target_tweet_info.media_list.length; media_index ++ ) {
                             let media = target_tweet_info.media_list[ media_index ],
                                 media_url = media.media_url,
@@ -3222,63 +3253,13 @@ var download_media_timeline = ( function () {
                                 download_error;
                             
                             if ( ! dry_run ) {
-                                let media_result = await new Promise( ( resolve, reject ) => {
-                                        fetch_url( media_url, {
-                                            responseType : 'arraybuffer',
-                                            
-                                            onload : ( response ) => {
-                                                if ( response.status < 200 || 300 <= response.status ) {
-                                                    resolve( {
-                                                        error : response.status + ' ' + response.statusText,
-                                                        response,
-                                                    } );
-                                                    
-                                                    return;
-                                                }
-                                                
-                                                resolve( {
-                                                    arraybuffer : response.response,
-                                                } );
-                                            },
-                                            
-                                            onerror : ( response ) => {
-                                                resolve( {
-                                                    error : response.status + ' ' + response.statusText,
-                                                    response,
-                                                } );
-                                            } // end of onerror()
-                                        } );
-                                    } );
+                                let media_result = await fetch_media( media_url );
                                 
-                                if ( ( media.media_type == MEDIA_TYPE.image ) && media_result.error && ( ( media_result.response || {} ).status == 404 ) ) {
+                                if ( ( media.media_type == MEDIA_TYPE.image ) && media_result.error ) {
                                     log_debug( 'before: media_url=', media_url );
                                     media_url = media_url.replace( /([?&]name=)orig/, '$1large' );
                                     log_debug( 'after : media_url=', media_url );
-                                    media_result = await new Promise( ( resolve, reject ) => {
-                                        fetch_url( media_url, {
-                                            responseType : 'arraybuffer',
-                                            
-                                            onload : ( response ) => {
-                                                if ( response.status < 200 || 300 <= response.status ) {
-                                                    resolve( {
-                                                        error : response.status + ' ' + response.statusText,
-                                                        response,
-                                                    } );
-                                                    return;
-                                                }
-                                                resolve( {
-                                                    arraybuffer : response.response,
-                                                } );
-                                            },
-                                            
-                                            onerror : ( response ) => {
-                                                resolve( {
-                                                    error : response.status + ' ' + response.statusText,
-                                                    response,
-                                                } );
-                                            } // end of onerror()
-                                        } );
-                                    } );
+                                    media_result = await fetch_media( media_url );
                                 }
                                 
                                 if ( media_result.error ) {
