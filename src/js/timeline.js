@@ -1571,7 +1571,7 @@ const
                 //  .include_retweets : リツイートを含む
                 filters = [];
             
-            if ( ! filter_info.nomedia ) {
+            if ( filter_info.use_media_filter && ( ! filter_info.nomedia ) ) {
                 if ( filter_info.image ) {
                     filters.push( 'filter:images' );
                 }
@@ -1581,7 +1581,7 @@ const
                 if ( filter_info.video ) {
                     //filters.push( 'filter:videos' );
                     filters.push( 'filter:native_video' );
-                    filters.push( 'filter:vine' );
+                    //filters.push( 'filter:vine' );
                 }
             }
             self.filter_string = filters.join( ' OR ' );

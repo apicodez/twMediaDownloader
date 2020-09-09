@@ -2376,7 +2376,7 @@ var download_media_timeline = ( function () {
                 self.clear_log();
                 self.update_status_bar( '' );
                 
-                if ( last_date_range_info ) {
+                if ( last_date_range_info && ( ! judge_search_timeline() ) ) {
                     //let since_id_value = ( is_for_likes_timeline || is_for_notifications_timeline || is_for_bookmarks_timeline ) ? last_date_range_info.max_datetime : last_date_range_info.max_id;
                     let since_id_value = last_date_range_info.download_datetime;
                     
@@ -2694,6 +2694,8 @@ var download_media_timeline = ( function () {
                 flag_text = flag_strings.join( '  /  ' ) + ( ( dry_run ) ? '   ** DRY RUN **' : '' );
                 
                 self.log( flag_text );
+                
+                self.log( 'Search filters: ' + TimelineObject.filter_string );
                 
                 self.csv_push_row( {
                     tweet_date : flag_text
