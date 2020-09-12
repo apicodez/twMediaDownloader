@@ -129,12 +129,19 @@ var SCRIPT_NAME = 'twMediaDownloader',
     IS_CHROME_EXTENSION = !! ( w.is_chrome_extension ),
     DEBUG = false;
 
-if ( ( typeof jQuery != 'function' ) || ( ( typeof JSZip != 'function' ) && ( typeof ZipRequest != 'function' ) ) || ( typeof Decimal != 'function' ) ) {
-    if ( w === w.top ) {
-        console.error( SCRIPT_NAME + '(' + location.href + '):', 'Library not found - ', 'jQuery:', typeof jQuery, 'JSZip:', typeof JSZip, 'ZipRequest:', typeof ZipRequest, 'Decimal:', typeof Decimal );
+[ 'jQuery', 'JSZip', 'Decimal' ].map( ( library_name ) => {
+    if ( typeof window[ library_name ] ) {
+        return;
     }
-    return;
-}
+    
+    const
+        message = SCRIPT_NAME + '(' + location.href + '): Library not found - ' +  library_name;
+    
+    if ( w === w.top ) {
+        console.error( message );
+    }
+    throw new Error( message );
+} );
 
 if ( ! IS_CHROME_EXTENSION ) {
     Object.assign( w, {
