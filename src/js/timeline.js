@@ -25,8 +25,8 @@ const
         return context_global.is_web_extension || context_global.is_chrome_extension;
     } )(),
     
-    use_agent = navigator.userAgent.toLowerCase(),
-    IS_FIREFOX = ( 0 <= use_agent.toLowerCase().indexOf( 'firefox' ) ),
+    user_agent = navigator.userAgent.toLowerCase(),
+    IS_FIREFOX = ( 0 <= user_agent.indexOf( 'firefox' ) ),
     
     // ■ Firefox で XMLHttpRequest や fetch が予期しない動作をしたり、開発者ツールのネットワークに通信内容が表示されないことへの対策
     // 参考: [Firefox のアドオン(content_scripts)でXMLHttpRequestやfetchを使う場合の注意 - 風柳メモ](https://memo.furyutei.work/entry/20180718/1531914142)
@@ -300,9 +300,9 @@ const
         create_bookmarks_cursor,
     } = ( () => {
         const
-            num_to_dec64_char_map = Array( 64 ).fill().map( (_, i ) => {
-                if ( 0 <= i && i <= 25 ) return String.fromCharCode( 'A'.charCodeAt(0) + i );
-                if ( 26 <= i && i <= 51 ) return String.fromCharCode( 'a'.charCodeAt(0) + ( i - 26 ) );
+            num_to_dec64_char_map = Array( 64 ).fill().map( ( _, i ) => {
+                if ( 0 <= i && i <= 25 ) return String.fromCharCode( 'A'.charCodeAt( 0 ) + i );
+                if ( 26 <= i && i <= 51 ) return String.fromCharCode( 'a'.charCodeAt( 0 ) + ( i - 26 ) );
                 if ( 52 <= i && i <= 61 ) return '' + ( i - 52 );
                 if ( i == 62 ) return '+';
                 return '/';

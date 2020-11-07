@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.15
+// @version         0.1.4.17
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -3784,12 +3784,12 @@ function add_media_button_to_tweet( $tweet ) {
     // ボタン挿入時には、画像の数が確定していない場合がある→クリック直後に取得
     $images = $tweet.find( 'div[aria-label] > img[src*="//pbs.twimg.com/media/"]' )
         .filter( function ( index ) {
-            return ( $( this ).parents( 'div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
+            return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
         } );
     
     $playable_media = $tweet.find( 'div[data-testid="previewInterstitial"]' ) // ※動画を自動再生しない場合のみ存在する要素
         .filter( function ( index ) {
-            return ( $( this ).parents( 'div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
+            return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
         } )
         .addClass( 'PlayableMedia' );
     
@@ -3820,7 +3820,7 @@ function add_media_button_to_tweet( $tweet ) {
     else {
         var $video = $tweet.find( 'video' )
                 .filter( function ( index ) {
-                    return ( $( this ).parents( 'div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
+                    return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
                 } ),
             video_url = $video.attr( 'src' );
         
@@ -3942,7 +3942,7 @@ function add_media_button_to_tweet( $tweet ) {
             // ボタン挿入時には、画像の数が確定していない場合がある→クリック直後に取得
             $images = $tweet.find( 'div[aria-label] > img[src*="//pbs.twimg.com/media/"]' )
                 .filter( function ( index ) {
-                    return ( $( this ).parents( 'div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
+                    return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
                 } )
                 .sort( function ( img_a, img_b ) {
                     try {
