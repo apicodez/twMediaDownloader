@@ -8,7 +8,7 @@ const
 
 ( ( exports ) => {
 const
-    VERSION = '0.1.1',
+    VERSION = '0.1.2',
     
     DEFAULT_DEBUG_MODE = false,
     DEFAULT_SCRIPT_NAME = MODULE_NAME,
