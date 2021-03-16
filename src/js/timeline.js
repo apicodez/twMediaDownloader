@@ -465,7 +465,8 @@ const
                 self = this;
             
             Object.assign( self, {
-                API_AUTHORIZATION_BEARER : 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
+                API_AUTHORIZATION_BEARER : 'AAAAAAAAAAAAAAAAAAAAAF7aAAAAAAAASCiRjWvh7R5wxaKkFp7MM%2BhYBqM%3DbQ0JPmjU9F6ZoMhDfI4uTNAaQuTDm2uO9x3WFVr2xBZ2nhjdP0',
+                API2_AUTHORIZATION_BEARER : 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
                 // TODO: 継続して使えるかどうか不明→変更された場合の対応を要検討
                 // ※ https://abs.twimg.com/responsive-web/client-web/main.<version>.js (例：https://abs.twimg.com/responsive-web/client-web/main.1b19a825.js) 内で定義されている値
                 // ※ これを使用しても、一定時間内のリクエスト回数に制限有り→参考: [TwitterのAPI制限 [2019/11/17現在] - Qiita](https://qiita.com/mpyw/items/32d44a063389236c0a65)
@@ -724,7 +725,7 @@ const
             
             options = Object.assign( {
                 method : 'GET',
-                headers : self.create_api_header(),
+                headers : self.create_api_header( url ),
                 mode : 'cors',
                 credentials : 'include',
             }, options || {} );
@@ -775,12 +776,12 @@ const
             return result;
         } // end of fetch_json()
         
-        create_api_header() {
+        create_api_header( api_url ) {
             const
                 self = this;
             
             return {
-                'authorization' : 'Bearer ' + self.API_AUTHORIZATION_BEARER,
+                'authorization' : 'Bearer ' + ( ( ( api_url || '' ).indexOf( '/2/' ) < 0 ) ? self.API_AUTHORIZATION_BEARER : self.API2_AUTHORIZATION_BEARER ),
                 'x-csrf-token' : self.csrf_token,
                 'x-twitter-active-user' : 'yes',
                 'x-twitter-auth-type' : 'OAuth2Session',

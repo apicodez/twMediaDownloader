@@ -601,7 +601,8 @@ function update_display_mode() {
 
 
 var fetch_api_json = ( () => {
-    var api_authorization_bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
+    var api_authorization_bearer = 'AAAAAAAAAAAAAAAAAAAAAF7aAAAAAAAASCiRjWvh7R5wxaKkFp7MM%2BhYBqM%3DbQ0JPmjU9F6ZoMhDfI4uTNAaQuTDm2uO9x3WFVr2xBZ2nhjdP0',
+        api2_authorization_bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
         
         get_api_csrf_token = () => {
             var csrf_token;
@@ -615,9 +616,9 @@ var fetch_api_json = ( () => {
             return csrf_token;
         }, // end of get_api_csrf_token()
         
-        create_api_header = () => {
+        create_api_header = ( api_url ) => {
             return {
-                'authorization' : 'Bearer ' + api_authorization_bearer,
+                'authorization' : 'Bearer ' + ( ( ( api_url || '' ).indexOf( '/2/' ) < 0 ) ? api_authorization_bearer : api2_authorization_bearer ),
                 'x-csrf-token' : get_api_csrf_token(),
                 'x-twitter-active-user' : 'yes',
                 'x-twitter-auth-type' : 'OAuth2Session',
@@ -666,7 +667,7 @@ var fetch_api_json = ( () => {
         fetch_api_json = ( api_url ) => {
             return fetch_json( api_url, {
                 method : 'GET',
-                headers : create_api_header(),
+                headers : create_api_header( api_url ),
                 mode: 'cors',
                 credentials: 'include',
             } );
