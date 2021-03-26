@@ -8,7 +8,7 @@ const
 
 ( ( exports ) => {
 const
-    VERSION = '0.1.2',
+    VERSION = '0.1.3',
     
     DEFAULT_DEBUG_MODE = false,
     DEFAULT_SCRIPT_NAME = MODULE_NAME,
@@ -1500,6 +1500,16 @@ const
             }
             else if ( tweet_status.entities && tweet_status.entities.media ) {
                 source_media_infos = tweet_status.entities.media;
+            }
+            else {
+                try {
+                    let unified_card_info = JSON.parse( tweet_status.card.binding_values.unified_card.string_value );
+                    
+                    source_media_infos = [ unified_card_info.media_entities[ unified_card_info.component_objects.media_1.data.id ] ];
+                }
+                catch ( error ) {
+                    source_media_infos = [];
+                }
             }
             
             return source_media_infos.map( ( source_media_info ) => {

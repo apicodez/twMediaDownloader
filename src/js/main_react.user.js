@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.17
+// @version         0.1.4.19
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -3130,7 +3130,18 @@ var download_media_timeline = ( function () {
                         // [Issue #54: Get video from tweets generated with Twitter for Advertisers tool](https://github.com/furyutei/twMediaDownloader/issues/54) への対応
                         await new Promise( ( resolve, reject ) => {
                             try {
-                                let stream_url = target_tweet_info.tweet_status.card.binding_values.player_stream_url.string_value;
+                                let binding_values = target_tweet_info.tweet_status.card.binding_values,
+                                    stream_url = ( binding_values.player_stream_url || binding_values.amplify_url_vmap ).string_value;
+                                
+                                if ( /\.mp4(?:\?|$)/.test( stream_url ) ) {
+                                    target_tweet_info.media_type = MEDIA_TYPE.video;
+                                    target_tweet_info.media_list = [ {
+                                        media_type : MEDIA_TYPE.video,
+                                        media_url : stream_url,
+                                    } ];
+                                    resolve();
+                                    return;
+                                }
                                 
                                 $.ajax( {
                                     type : 'GET',
@@ -3808,7 +3819,7 @@ function add_media_button_to_tweet( $tweet ) {
     //tweet_url = $tweet.find( 'a[role="link"][href^="/"][href*="/status/"]:has(time)' ).attr( 'href' );
     tweet_url = $tweet.find( 'a[role="link"][href^="/"][href*="/status/"]' ).filter( function () {return ( 0 < $( this ).find( 'time' ).length );} ).attr( 'href' );
     $tweet_time = $tweet.find( 'a[role="link"] time[datetime]' );
-        
+    
     if ( ! tweet_url ) {
         tweet_url = new URL( location.href ).pathname;
     }
@@ -3839,6 +3850,15 @@ function add_media_button_to_tweet( $tweet ) {
     $action_list = $tweet.find( 'div[dir="auto"]' ).filter( function () {return ( 0 < $( this ).children( 'a[role="link"][href*="/help.twitter.com/"]' ).length );} );
     if ( $action_list.length <= 0 ) {
         $action_list = $tweet.find( 'div[role="group"]' );
+    }
+    if ( /(?:periscope)/i.test( $action_list.text() ) ) {
+        // ツイートソースをもとに除外
+        return false;
+    }
+    
+    if ( 0 < $tweet.find( '[data-testid="card.wrapper"] a[role="link"][href^="/i/broadcasts/"]' ).length ) {
+        // ライブ放送（Broadcast）は除外
+        return false;
     }
     
     // ボタン挿入時には、画像の数が確定していない場合がある→クリック直後に取得
@@ -3874,7 +3894,12 @@ function add_media_button_to_tweet( $tweet ) {
             }
         }
         else {
-            $playable_media.removeClass( 'PlayableMedia' );
+            if ( 0 < $playable_media.find( '[data-testid="playButton"]' ).length ) {
+                $playable_media.addClass( 'PlayableMedia--video' );
+            }
+            else {
+                $playable_media.removeClass( 'PlayableMedia' );
+            }
         }
     }
     else {
@@ -4310,8 +4335,13 @@ function add_media_button_to_tweet( $tweet ) {
                 
                 if ( is_open_image_mode( event ) ) {
                     // ポップアップブロック対策
-                    //child_window = w.open( 'about:blank', '_blank' ); // 空ページを開いておく
-                    child_window = w.open( LOADING_IMAGE_URL, '_blank' ); // ダミー画像を開いておく
+                    if ( IS_FIREFOX ) {
+                        child_window = w.open( 'about:blank', '_blank' ); // 空ページを開いておく
+                        // TODO: LOADING_IMAGE_URL だと fetch() 後には child_window が DeadObject 化してしまう
+                    }
+                    else {
+                        child_window = w.open( LOADING_IMAGE_URL, '_blank' ); // ダミー画像を開いておく
+                    }
                 }
                 
                 /*
@@ -4379,8 +4409,13 @@ function add_media_button_to_tweet( $tweet ) {
                 
                 if ( is_open_image_mode( event ) ) {
                     // ポップアップブロック対策
-                    //child_window = w.open( 'about:blank', '_blank' ); // 空ページを開いておく
-                    child_window = w.open( LOADING_IMAGE_URL, '_blank' ); // ダミー画像を開いておく
+                    if ( IS_FIREFOX ) {
+                        child_window = w.open( 'about:blank', '_blank' ); // 空ページを開いておく
+                        // TODO: LOADING_IMAGE_URL だと fetch() 後には child_window が DeadObject 化してしまう
+                    }
+                    else {
+                        child_window = w.open( LOADING_IMAGE_URL, '_blank' ); // ダミー画像を開いておく
+                    }
                 }
                 
                 /*
@@ -4423,7 +4458,15 @@ function add_media_button_to_tweet( $tweet ) {
                         };
                     
                     try {
-                        video_info = json.extended_entities.media[ 0 ].video_info;
+                        try {
+                            video_info = json.extended_entities.media[ 0 ].video_info;
+                        }
+                        catch ( error ) {
+                            // [Issue #54: Get video from tweets generated with Twitter for Advertisers tool](https://github.com/furyutei/twMediaDownloader/issues/54#issuecomment-806267490) への対応
+                            var unified_card_info = JSON.parse( json.card.binding_values.unified_card.string_value );
+                            
+                            video_info = unified_card_info.media_entities[ unified_card_info.component_objects.media_1.data.id ].video_info;
+                        }
                         variants = video_info.variants;
                         
                         variants.forEach( function ( variant ) {
@@ -4436,7 +4479,13 @@ function add_media_button_to_tweet( $tweet ) {
                     catch ( error ) {
                         // [Issue #54: Get video from tweets generated with Twitter for Advertisers tool](https://github.com/furyutei/twMediaDownloader/issues/54) への対応
                         try {
-                            var stream_url = json.card.binding_values.player_stream_url.string_value;
+                            var binding_values = json.card.binding_values,
+                                stream_url = ( binding_values.player_stream_url || binding_values.amplify_url_vmap ).string_value;
+                            
+                            if ( /\.mp4(?:\?|$)/.test( stream_url ) ) {
+                                finish( stream_url );
+                                return;
+                            }
                             
                             $.ajax( {
                                 type : 'GET',
