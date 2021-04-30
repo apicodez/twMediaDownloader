@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.19
+// @version         0.1.4.20
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -3876,29 +3876,45 @@ function add_media_button_to_tweet( $tweet ) {
     if ( 0 < $playable_media.length ) {
         $player = $playable_media.find( 'div[style*="background-image"]' ).addClass( 'PlayableMedia-player' );
         
-        var background_image = $player.css( 'background-image' );
+        var $gif_marks = $playable_media.find( 'span' ).filter( function () {
+                var text = '';
+                
+                $( this ).contents().each( function () {
+                    if ( this.nodeType != Node.TEXT_NODE ) return;
+                    text += ( this.textContent || '' ).trim();
+                } );
+                
+                return text.toUpperCase() == 'GIF';
+            } );
         
-        if ( background_image ) {
-            if ( background_image.match( /tweet_video_thumb/ ) ) {
-                $playable_media.addClass( 'PlayableMedia--gif' );
-            }
-            //else if ( background_image.match( /(?:_video_thumb\/\d+\/|\/media\/)/ ) ) {
-            //    $playable_media.addClass( 'PlayableMedia--video' );
-            //}
-            else if ( ! background_image.match( /card_img/ ) ) {
-                $playable_media.addClass( 'PlayableMedia--video' );
-            }
-            else {
-                // TODO: GIF / VIDEO 以外は未対応
-                //$playable_media.addClass( 'PlayableMedia--vine' );
-            }
+        if ( 0 < $gif_marks.length ) {
+            $playable_media.addClass( 'PlayableMedia--gif' );
         }
         else {
-            if ( 0 < $playable_media.find( '[data-testid="playButton"]' ).length ) {
-                $playable_media.addClass( 'PlayableMedia--video' );
+            var background_image = $player.css( 'background-image' );
+            
+            if ( background_image ) {
+                if ( background_image.match( /tweet_video_thumb/ ) ) {
+                    $playable_media.addClass( 'PlayableMedia--gif' );
+                }
+                //else if ( background_image.match( /(?:_video_thumb\/\d+\/|\/media\/)/ ) ) {
+                //    $playable_media.addClass( 'PlayableMedia--video' );
+                //}
+                else if ( ! background_image.match( /card_img/ ) ) {
+                    $playable_media.addClass( 'PlayableMedia--video' );
+                }
+                else {
+                    // TODO: GIF / VIDEO 以外は未対応
+                    //$playable_media.addClass( 'PlayableMedia--vine' );
+                }
             }
             else {
-                $playable_media.removeClass( 'PlayableMedia' );
+                if ( 0 < $playable_media.find( '[data-testid="playButton"]' ).length ) {
+                    $playable_media.addClass( 'PlayableMedia--video' );
+                }
+                else {
+                    $playable_media.removeClass( 'PlayableMedia' );
+                }
             }
         }
     }
