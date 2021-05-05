@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for TweetDeck
 // @description     Download media files on TweetDeck.
-// @version         0.1.4.8
+// @version         0.1.4.9
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://tweetdeck.twitter.com/*
@@ -1005,7 +1005,17 @@ var add_media_button_to_tweet = ( () => {
                         case 'gif' :
                             $media_container.find( '.js-media-gif-container, a.js-media-image-link[rel="mediaPreview"]' ).each( function () {
                                 var $element = $( this ),
-                                    thumbnail_url = get_thumbnail_url( $element, tweet_id );
+                                    media_url;
+                                
+                                if ( $element.prop( 'tagName' ) == 'VIDEO' ) {
+                                    media_url = $element.attr( 'src' );
+                                    if ( media_url ) {
+                                        media_urls.push( media_url );
+                                        return;
+                                    }
+                                }
+                                
+                                var thumbnail_url = get_thumbnail_url( $element, tweet_id );
                                 
                                 if ( ! thumbnail_url ) {
                                     return;
@@ -1013,7 +1023,7 @@ var add_media_button_to_tweet = ( () => {
                                 
                                 thumbnail_urls.push( thumbnail_url );
                                 
-                                var media_url = get_gif_video_url_from_thumbnail_url( thumbnail_url );
+                                media_url = get_gif_video_url_from_thumbnail_url( thumbnail_url );
                                 
                                 if ( ! media_url ) {
                                     return;
@@ -1021,7 +1031,7 @@ var add_media_button_to_tweet = ( () => {
                                 media_urls.push( media_url );
                             } );
                             
-                            if ( thumbnail_urls.length <= 0 ) {
+                            if ( ( thumbnail_urls.length <= 0 ) && ( media_urls.length <= 0 ) ) {
                                 media_type = 'none';
                             }
                             break;
@@ -1029,7 +1039,18 @@ var add_media_button_to_tweet = ( () => {
                         case 'video' :
                             $media_container.find( '.js-media-native-video, a.js-media-image-link[rel="mediaPreview"]' ).each( function () {
                                 var $element = $( this ),
-                                    thumbnail_url = get_thumbnail_url( $element, tweet_id );
+                                    media_url;
+                                
+                                if ( $element.prop( 'tagName' ) == 'VIDEO' ) {
+                                    // 2021/05: 最初からVIDEOタグが含まれるパターンがあることに気付く
+                                    media_url = $element.attr( 'src' );
+                                    if ( media_url ) {
+                                        media_urls.push( media_url );
+                                        return;
+                                    }
+                                }
+                                
+                                var thumbnail_url = get_thumbnail_url( $element, tweet_id );
                                 
                                 if ( ! thumbnail_url ) {
                                     return;
@@ -1038,7 +1059,7 @@ var add_media_button_to_tweet = ( () => {
                                 thumbnail_urls.push( thumbnail_url );
                             } );
                             
-                            if ( thumbnail_urls.length <= 0 ) {
+                            if ( ( thumbnail_urls.length <= 0 ) && ( media_urls.length <= 0 ) ) {
                                 if ( $media_container.find( 'iframe.js-media-native-video' ).length <= 0 ) {
                                     media_type = 'none';
                                 }
