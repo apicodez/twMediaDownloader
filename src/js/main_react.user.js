@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.20
+// @version         0.1.4.22
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -243,6 +243,7 @@ var LANGUAGE = ( function () {
     REACTION_TYPE = TwitterTimeline.REACTION_TYPE,
     MEDIA_TYPE = TwitterTimeline.MEDIA_TYPE,
     CLASS_TIMELINE_SET = TwitterTimeline.CLASS_TIMELINE_SET,
+    TWITTER_API = TwitterTimeline.TWITTER_API,
     //}
     
     API_RATE_LIMIT_STATUS = 'https://api.twitter.com/1.1/application/rate_limit_status.json',
@@ -271,7 +272,6 @@ var LANGUAGE = ( function () {
     include_retweets = false,  // true: ユーザータイムライン上の RT のメディアも対象とする
     support_nomedia = false,
     dry_run = false; // true: 走査のみ
-
 
 switch ( LANGUAGE ) {
     case 'ja' :
@@ -729,26 +729,57 @@ function get_screen_name( url ) {
 } // end of get_screen_name()
 
 
+function get_profile_container() {
+    return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div > div > div > span > span' );
+} // end of get_profile_container()
+
+
+function extract_text( $parent ) {
+    var text = '';
+    $( $parent ).contents().each( function () {
+        switch ( this.nodeType ) {
+            case Node.TEXT_NODE :
+                text += this.textContent || '';
+                break;
+            case Node.ELEMENT_NODE:
+                switch ( this.tagName ) {
+                    case 'IMG' :
+                        text += this.alt || ' ';
+                        break;
+                    case 'SPAN' :
+                        text += extract_text( $( this ) );
+                        break;
+                }
+                break;
+        }
+    } );
+    return text;
+} // end of extract_text()
+
+
 function get_profile_name() {
-    //return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div[aria-haspopup="false"] span > span > span' ).text().trim();
-    //return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div[aria-haspopup="false"] span > span > span' ).get().reduce( ( previousValue, currentValue ) => {
-    return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div > div > div > span > span > span' ).get().reduce( ( previousValue, currentValue ) => {
-        var $span = $( currentValue ),
-            $span_img = $span.find( 'img' ),
-            text = '';
-        
-        try {
-            text = $span.text().trim() || ( ( 0 < $span_img.length ) ? $span_img.attr( 'alt' ).trim() : '' ); // 絵文字は text() では取れない→ img.alt から取得
-        }
-        catch ( error ) {
-        }
-        
-        if ( ! text ) {
-            text = ' ';
-        }
-        
-        return previousValue + text;
-    }, '' );
+    /*
+    ////return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div[aria-haspopup="false"] span > span > span' ).text().trim();
+    ////return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div[aria-haspopup="false"] span > span > span' ).get().reduce( ( previousValue, currentValue ) => {
+    //return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div > div > div > span > span > span' ).get().reduce( ( previousValue, currentValue ) => {
+    //    var $span = $( currentValue ),
+    //        $span_img = $span.find( 'img' ),
+    //        text = '';
+    //    
+    //    try {
+    //        text = $span.text().trim() || ( ( 0 < $span_img.length ) ? $span_img.attr( 'alt' ).trim() : '' ); // 絵文字は text() では取れない→ img.alt から取得
+    //    }
+    //    catch ( error ) {
+    //    }
+    //    
+    //    if ( ! text ) {
+    //        text = ' ';
+    //    }
+    //    
+    //    return previousValue + text;
+    //}, '' );
+    */
+    return extract_text( get_profile_container() );
 } // end of get_profile_name()
 
 
@@ -781,7 +812,7 @@ function judge_profile_timeline( url ) {
         url = w.location.href;
     }
     
-    return ( !! get_screen_name( url ) ) && ( !! get_profile_name( url ) );
+    return ( !! get_screen_name( url ) ) && ( !! get_profile_name() );
 } // end of judge_profile_timeline()
 
 
@@ -2501,7 +2532,8 @@ var download_media_timeline = ( function () {
                 var is_search_timeline = self.is_search_timeline = judge_search_timeline(),
                     screen_name = self.screen_name = get_screen_name(),
                     logined_screen_name = self.logined_screen_name = get_logined_screen_name(),
-                    profile_name = get_profile_name(),
+                    user_info = await TWITTER_API.get_user_info( { screen_name : screen_name } ),
+                    profile_name = ( user_info && user_info.name ) ? user_info.name : get_profile_name(),
                     since_id = self.$since_id.val().trim(),
                     until_id = self.$until_id.val().trim(),
                     max_tweet_id,
@@ -3626,7 +3658,9 @@ var check_timeline_headers = ( function () {
         
         //$target_container = $( 'div[data-testid="primaryColumn"] > div > div > div:first:has(h2[role="heading"] > div[aria-haspopup="false"] span > span > span)' );
         //$target_container = $( 'div[data-testid="primaryColumn"] > div > div > div' ).first().filter( function () {return ( 0 < $( this ).find( 'h2[role="heading"] > div[aria-haspopup="false"] span > span > span' ).length );} );
-        $target_container = $( 'div[data-testid="primaryColumn"] > div > div > div' ).first().filter( function () {return ( 0 < $( this ).find( 'h2[role="heading"] > div > div > div > span > span > span' ).length );} );
+        //$target_container = $( 'div[data-testid="primaryColumn"] > div > div > div' ).first().filter( function () {return ( 0 < $( this ).find( 'h2[role="heading"] > div > div > div > span > span > span' ).length );} );
+        //$target_container = $( 'div[data-testid="primaryColumn"] > div > div > div' ).first().filter( function () {return ( 0 < $( this ).find( 'h2[role="heading"] > div > div > div > span > span >' ).children( 'span, img' ).length );} );
+        $target_container = get_profile_container().parents( 'h2[role="heading"]' ).parent( 'div' );
         if ( 0 < $target_container.find( '.' + button_container_class_name ).length ) {
             $target_container = $();
         }
