@@ -86,4 +86,7 @@
 ,   "AUTO_CONTINUE" : {
         "message" : "Automatic continuation after download limit is reached"
     }
+,   "DOMATION" : {
+        "message" : "Your donation is welcome !"
+    }
 }

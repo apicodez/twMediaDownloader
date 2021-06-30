@@ -86,4 +86,7 @@
 ,   "AUTO_CONTINUE" : {
         "message" : "ダウンロード制限到達後の自動継続"
     }
+,   "DOMATION" : {
+        "message" : "贈り物 🎁 歓迎！"
+    }
 }
