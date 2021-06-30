@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.22
+// @version         0.1.4.23
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -3686,8 +3686,10 @@ var check_timeline_headers = ( function () {
         
         $button_container = $( '<div />' )
             .css( {
-                'right' : '130px'
-            ,   'bottom' : '2px'
+            //    'right' : '130px'
+            //,   'bottom' : '2px'
+                'right' : '8px'
+            ,   'bottom' : '-8px'
             } );
         
         if ( CLASS_TIMELINE_SET[ TIMELINE_TYPE.user ] ) {
