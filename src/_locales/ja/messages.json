@@ -41,6 +41,15 @@
 ,   "VIDEO_DOWNLOAD_LINK" : {
         "message" : "動画ダウンロードボタン"
     }
+,   "DOWNLOAD_LINK" : {
+        "message" : "ダウンロードボタン"
+    }
+,   "IMAGE" : {
+        "message" : "画像"
+    }
+,   "VIDEO" : {
+        "message" : "動画"
+    }
 ,   "ENABLE_ZIPREQUEST" : {
         "message" : "バックグラウンドでのZIP化（パフォーマンス向上）"
     }

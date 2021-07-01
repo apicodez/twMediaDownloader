@@ -4894,14 +4894,14 @@ function initialize( user_options ) {
             
             ,   night_mode_dialog_container_selector + ' ' + status_bar_selector + ' {color: #8899a6;}'
             
-            ,   media_button_selector + ' {font-size: 12px; font-weight: normal; padding: 2px 3px; text-decoration: none; cursor: pointer; display: inline-block;}'
-            ,   header_button_selector + ' {font-size: 16px; vertical-align: middle; text-decoration: underline}'
+            ,   media_button_selector + ' {font-size: 11px; font-weight: normal; padding: 1px 2px; text-decoration: none; cursor: pointer; display: inline-block; min-width: 42px;}'
+            ,   header_button_selector + ' {font-size: 14px; vertical-align: middle; text-decoration: underline;}'
             ];
         
         var css_rule_lines_react = [
                 media_button_selector + ' {margin-left: 8px; margin-right: 8px; background-image: linear-gradient(rgb(255, 255, 255), rgb(245, 248, 250)); background-color: rgb(245, 248, 250); color: rgb(102, 117, 127); cursor: pointer; display: inline-block; position: relative; border-width: 1px; border-style: solid; border-color: rgb(230, 236, 240); border-radius: 4px;}'
             ,   media_button_selector + ':hover {color: rgb(20, 23, 26); background-color: rgb(230, 236, 240); background-image: linear-gradient(rgb(255, 255, 255), rgb(230, 236, 240)); text-decoration: none; border-color: rgb(230, 236, 240);}'
-            ,   header_button_selector + ' {color: rgb(27, 149, 224); font-weight: bolder;}'
+            ,   header_button_selector + ' {color: rgb(27, 149, 224); font-weight: bolder; /*border-bottom: solid 1px rgb(27, 149, 224);*/ /*text-decoration: none;*/}'
             ,   header_button_container_selector + '{position: absolute; z-index: 1000;}'
             ,   dialog_container_selector + ' ' + log_selector + ' pre {margin: 0 0;}'
             ,   dialog_container_selector + ' ' + range_container_selector + ' {font-size:14px;}'

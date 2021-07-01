@@ -41,6 +41,15 @@
 ,   "VIDEO_DOWNLOAD_LINK" : {
         "message" : "Video Download Buttons"
     }
+,   "DOWNLOAD_LINK" : {
+        "message" : "Download Buttons"
+    }
+,   "IMAGE" : {
+        "message" : "Image"
+    }
+,   "VIDEO" : {
+        "message" : "Video"
+    }
 ,   "ENABLE_ZIPREQUEST" : {
         "message" : "Zip in background (for performance)"
     }

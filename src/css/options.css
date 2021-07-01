@@ -79,7 +79,9 @@ span.header {
 }
 
 span.note {
+    display: inline-block;
     font-size: 12px;
+    margin-left: 8px;
 }
 
 span.text,
@@ -132,4 +134,24 @@ input.button {
 
 .hidden {
     display: none;
+}
+
+.flex-row {
+    display: flex;
+    flex-direction: row;
+}
+
+.flex-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.flex-column .item {
+    margin-bottom: 8px;
+}
+
+.item-header {
+    display: inline-block;
+    font-weight: bolder;
+    margin-right: 16px;
 }
