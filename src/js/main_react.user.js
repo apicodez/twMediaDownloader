@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.23
+// @version         0.1.4.24
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -604,18 +604,34 @@ function normalize_img_url( source_url ) {
 } // end of normalize_img_url()
 
 
-function get_img_url( img_url, kind ) {
+function get_img_url( img_url, kind, old_format ) {
     img_url = normalize_img_url( img_url );
     
-    if ( ! kind ) {
-        kind = '';
+    if ( old_format ) {
+        if ( ! kind ) {
+            kind = '';
+        }
+        else {
+            if ( kind.search( ':' ) != 0 ) {
+                kind = ':' + kind;
+            }
+        }
+        img_url = img_url.replace( /:\w*$/, '' ) + kind;
     }
     else {
-        if ( kind.search( ':' ) != 0 ) {
-            kind = ':' + kind;
+        if ( ! kind ) {
+            kind = 'orig';
         }
+        kind = kind.replace( /:/g, '' );
+        
+        if ( ! /:\w*$/.test( img_url ) ) {
+            img_url += ':' + kind;
+        }
+        
+        img_url = img_url.replace( /\.([^.]+):\w*$/, '' ) + '?format=' + RegExp.$1 + '&name=' + kind;
     }
-    return img_url.replace( /:\w*$/, '' ) + kind;
+    
+    return img_url;
 } // end of get_img_url()
 
 
@@ -1066,6 +1082,31 @@ var [
             return csrf_token;
         }, // end of get_csrf_token()
         
+        get_guest_token = () => {
+            var guest_token;
+            
+            try {
+                guest_token = document.cookie.match( /gt=(.*?)(?:;|$)/ )[ 1 ];
+            }
+            catch ( error ) {
+            }
+            
+            return guest_token;
+        }, // end of get_guest_token()
+        
+        get_language = () => {
+            var language;
+            
+            try {
+                language = document.cookie.match( /lang=(.*?)(?:;|$)/ )[ 1 ];
+            }
+            catch ( error ) {
+                language = LANGUAGE;
+            }
+            
+            return language;
+        }, // end of get_language()
+        
         get_twitter_api = ( screen_name ) => {
             if ( ! screen_name ) {
                 screen_name = get_logined_screen_name();
@@ -1319,18 +1360,27 @@ var [
             //    ,   'x-csrf-token' : csrf_token
             //    ,   'x-twitter-active-user' : 'yes'
             //    ,   'x-twitter-auth-type' : 'OAuth2Session'
-            //    ,   'x-twitter-client-language' : LANGUAGE
+            //    ,   'x-twitter-client-language' : get_language()
             //    };
             */
             
             var create_api_headers = ( api_url ) => {
-                    return {
-                        'Authorization' : 'Bearer ' + ( ( ( api_url || '' ).indexOf( '/2/' ) < 0 ) ? API_AUTHORIZATION_BEARER : API2_AUTHORIZATION_BEARER ),
-                        'x-csrf-token' : csrf_token,
-                        'x-twitter-active-user' : 'yes',
-                        'x-twitter-auth-type' : 'OAuth2Session',
-                        'x-twitter-client-language' : LANGUAGE,
-                    };
+                    var headers = {
+                            'Authorization' : 'Bearer ' + ( ( ( api_url || '' ).indexOf( '/2/' ) < 0 ) ? API_AUTHORIZATION_BEARER : API2_AUTHORIZATION_BEARER ),
+                            'x-csrf-token' : csrf_token,
+                            'x-twitter-active-user' : 'yes',
+                            'x-twitter-auth-type' : 'OAuth2Session',
+                            'x-twitter-client-language' : get_language(),
+                        };
+                    
+                    if ( csrf_token.length == 32 ) {
+                        var guest_token = get_guest_token();
+                            
+                        if ( guest_token ) {
+                            headers[ 'x-guest-token' ] = guest_token;
+                        }
+                    }
+                    return headers;
                 };
             
             if (
@@ -2933,7 +2983,7 @@ var download_media_timeline = ( function () {
                         .catch( function ( error ) {
                             log_error( 'Error in zip.generateAsync()', error );
                             
-                            alert( 'Sorry, ZIP download failed !' );
+                            alert( 'ZIP download failed !' );
                             
                             _callback();
                         } );
@@ -3838,759 +3888,691 @@ var check_timeline_headers = ( function () {
 } )(); // end of check_timeline_headers()
 
 
-function add_media_button_to_tweet( $tweet ) {
-    var media_button_class_name = SCRIPT_NAME + '_media_button',
-        tweet_id,
-        $action_list,
-        $images,
-        $playable_media,
-        $player,
+function parse_tweet( $tweet ) {
+    var $tweet_time = $tweet.find( 'a[role="link"] time[datetime]' ).filter( function () {
+            return $( this ).parents( 'div[role="link"]' ).length < 1;
+        } ).first(),
+        is_individual_tweet = ( $tweet_time.length <= 0 ),
+        $caret_menu_button = $tweet.find( '[role="button"][data-testid="caret"]' ).first(),
+        $source_label_container = ( is_individual_tweet ) ? $tweet.find( 'div[dir="auto"]' ).filter( function () {
+            return ( 0 < $( this ).children( 'a[role="link"][href*="/help.twitter.com/"]' ).length );
+        } ) : $(),
+        $action_list_container = $tweet.find( 'div[role="group"]' ).first(),
+        $quote_container = $tweet.find( 'div[role="link"]' ).first().parent(),
+        $tweet_link = ( is_individual_tweet ) ? $source_label_container.find( 'a[role="link"][href^="/"][href*="/status/"]' ).first() : $tweet_time.parents( 'a[role="link"]' ).first(),
+        tweet_url = ( 0 < $tweet_link.length ) ? $tweet_link.attr( 'href' ) : new URL( location.href ).pathname,
+        { screen_name, tweet_id } = ( tweet_url.match( /^\/([^\/]+)\/status(?:es)?\/(\d+)/ ) ) ? { screen_name : RegExp.$1, tweet_id : RegExp.$2 } : { screen_name : '_unknown_', tweet_id : 0 },
+        timestamp_ms = ( () => {
+            if ( 0 < $tweet_time.length ) {
+                return new Date( $tweet_time.attr( 'datetime' ) ).getTime();
+            }
+            // TODO: 個別ツイートの場合、日付が取得できない→ツイートIDから取得しているが、2010年11月以前は未対応
+            try {
+                return tweet_id_to_date( tweet_id ).getTime();
+            }
+            catch ( error ) {
+                return new Date().getTime();
+            }
+        } )(),
+        $all_image_links = $tweet.find( 'a[role="link"][href*="/status/"][href*="/photo/"]' ).filter( function () {
+            return /\/status\/\d+\/photo\/\d+$/.test( $( this ).attr( 'href' ) );
+        } ),
+        own_image_link_map = {},
+        $own_image_links = $all_image_links.filter( function () {
+            return ( $( this ).attr( 'href' ).match( /^\/([^\/]+)\/status(?:es)?\/(\d+)/ ) && ( screen_name == RegExp.$1 ) && ( tweet_id == RegExp.$2 ) );
+        } ).each( function () {
+            own_image_link_map[ $( this ).attr(' href' ) ] = true;
+        } ),
+        has_images = (0 < $own_image_links.length ),
+        $quote_image_links = $all_image_links.filter( function () {
+            return ( ! own_image_link_map[ $( this ).attr(' href' ) ] );
+        } ),
+        $all_video_containers = $tweet.find( '[data-testid="previewInterstitial"],[data-testid="videoPlayer"]' ),
+        $own_video_container = ( () => {
+            var $own_video_container = $all_video_containers.filter( function () {
+                    return $( this ).parents( 'div[role="link"]' ).length < 1;
+                } ).first();
+            
+            if ( /(?:periscope)/i.test( $source_label_container.text() ) ) {
+                // ツイートソースをもとに除外
+                return $();
+            }
+            
+            if ( 0 < $tweet.find( '[data-testid="card.wrapper"] a[role="link"][href^="/i/broadcasts/"]' ).length ) {
+                // ライブ放送（Broadcast）は除外
+                return $();
+            }
+            
+            if ( $own_video_container.data( 'testid' ) == 'previewInterstitial' ) {
+                // 動画自動再生がOFFの場合
+                if ( $own_video_container.find( '[data-testid="playButton"]' ).length < 1 ) {
+                    return $();
+                }
+            }
+            return $own_video_container;
+        } )(),
+        has_video = ( 0 < $own_video_container.length ),
+        has_gif_video = has_video && ( () => {
+            var $player = $own_video_container.find( 'div[style*="background-image"]' ).first(),
+                background_image_url = $player.css( 'background-image' );
+            
+            if ( background_image_url ) {
+                if ( /tweet_video_thumb/.test( background_image_url ) ) {
+                    return true;
+                }
+            }
+            
+            var $video = $own_video_container.find( 'video' );
+            
+            if ( 0 < $video.length ) {
+                if ( /video\.twimg\.com\/tweet_video\/.*?\.mp4/.test( $video.attr( 'src' ) ) ) {
+                    return true;
+                }
+            }
+            
+            var $gif_marks = $own_video_container.find( 'span' ).filter( function () {
+                    var text = '';
+                    
+                    $( this ).contents().each( function () {
+                        if ( this.nodeType != Node.TEXT_NODE ) return;
+                        text += ( this.textContent || '' ).trim();
+                    } );
+                    
+                    return text.toUpperCase() == 'GIF';
+                } );
+            
+            return 0 < $gif_marks.length;
+        } )(),
+        has_media = has_images || has_video,
+        media_number = ( has_video ) ? $own_video_container.length : $own_image_links.length,
+        is_min_render_complete = ( () => {
+            if ( $caret_menu_button.length < 1 ) return false;
+            if ( $action_list_container.length < 1 ) return false;
+            if ( $tweet_link.length < 1 ) return false;
+            return true;
+        } )();
+    
+    return {
+        $tweet,
+        is_min_render_complete,
+        is_individual_tweet,
         tweet_url,
         screen_name,
+        tweet_id,
         timestamp_ms,
+        $tweet_link,
         $tweet_time,
-        $tweet_profile_link,
-        media_number = 0;
+        $caret_menu_button,
+        $source_label_container,
+        $action_list_container,
+        $quote_container,
+        $all_image_links,
+        $own_image_links,
+        $quote_image_links,
+        $all_video_containers,
+        $own_video_container,
+        has_media,
+        has : {
+            images : has_images,
+            video : has_video,
+            gif_video : has_gif_video,
+        },
+        media_number,
+    };
+} // end of parse_tweet()
+
+
+function update_video_mark( tweet_info ) {
+    if ( ! tweet_info.has.video ) return;
     
-    //tweet_url = $tweet.find( 'a[role="link"][href^="/"][href*="/status/"]:has(time)' ).attr( 'href' );
-    tweet_url = $tweet.find( 'a[role="link"][href^="/"][href*="/status/"]' ).filter( function () {return ( 0 < $( this ).find( 'time' ).length );} ).attr( 'href' );
-    $tweet_time = $tweet.find( 'a[role="link"] time[datetime]' );
+    var $own_video_container = tweet_info.$own_video_container;
     
-    if ( ! tweet_url ) {
-        tweet_url = new URL( location.href ).pathname;
-    }
+    $own_video_container.addClass( 'PlayableMedia PlayableMedia-player PlayableMedia-video' );
     
-    if ( tweet_url.match( /^\/([^\/]+)\/status(?:es)?\/(\d+)/ ) ) {
-        screen_name = RegExp.$1;
-        tweet_id = RegExp.$2;
+    if ( tweet_info.has.gif_video ) {
+        $own_video_container.addClass( 'PlayableMedia--gif' );
     }
-    else {
-        screen_name = '_unknown_';
-        tweet_id = 0;
-    }
+} // end of update_video_mark()
+
+
+function is_open_media_mode( $event ) {
+    return ( ( ( ! OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) && ( $event.altKey ) ) || ( ( OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) && ( ! $event.altKey ) ) );
+} // end of is_open_media_mode()
+
+
+function get_jqxhr_error_message( jqXHR ) {
+    var message = '';
     
-    if ( 0 < $tweet_time.length ) {
-        timestamp_ms = new Date( $tweet_time.attr( 'datetime' ) ).getTime();
+    switch ( jqXHR.status ) {
+        case 401 :
+            message = '(Unauthorized)';
+            break;
+        case 403 :
+            message = '(Forbidden)';
+            break;
+        case 429 :
+            try {
+                message = '(It will be reset after about ' + ~~( jqXHR.getResponseHeader( 'x-rate-limit-reset' ) - new Date().getTime() / 1000 ) + ' seconds)';
+            }
+            catch ( error ) {
+            }
+            break;
     }
-    else {
-        // TODO: 個別ツイートの場合、日付が取得できない→ツイートIDから取得しているが、2010年11月以前は未対応
-        try {
-            timestamp_ms = tweet_id_to_date( tweet_id ).getTime();
-        }
-        catch ( error ) {
-            timestamp_ms = new Date().getTime();
-        }
-    }
-    
-    //$action_list = $tweet.find( 'div[dir="auto"]:has(>a[role="link"][href*="/help.twitter.com/"])' ); // →遅い→ :has() を未使用にすることで効果大
-    $action_list = $tweet.find( 'div[dir="auto"]' ).filter( function () {return ( 0 < $( this ).children( 'a[role="link"][href*="/help.twitter.com/"]' ).length );} );
-    if ( $action_list.length <= 0 ) {
-        $action_list = $tweet.find( 'div[role="group"]' );
-    }
-    if ( /(?:periscope)/i.test( $action_list.text() ) ) {
-        // ツイートソースをもとに除外
-        return false;
-    }
-    
-    if ( 0 < $tweet.find( '[data-testid="card.wrapper"] a[role="link"][href^="/i/broadcasts/"]' ).length ) {
-        // ライブ放送（Broadcast）は除外
-        return false;
-    }
-    
-    // ボタン挿入時には、画像の数が確定していない場合がある→クリック直後に取得
-    $images = $tweet.find( 'div[aria-label] > img[src*="//pbs.twimg.com/media/"]' )
-        .filter( function ( index ) {
-            return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
+    return message;
+} // end of get_jqxhr_error_message()
+
+
+function async_get_tweet_info( tweet_id ) {
+    return new Promise( ( resolve, reject ) => {
+        api2_get_tweet_info( tweet_id )
+        .done( function ( json, textStatus, jqXHR ) {
+            resolve( {
+                tweet_info : json,
+                textStatus, 
+                jqXHR,
+            } );
+        } )
+        .fail( function ( jqXHR, textStatus, errorThrown ) {
+            resolve( {
+                tweet_info : null,
+                textStatus,
+                jqXHR,
+                errorThrown,
+            } );
+        } )
+        .always( function () {
         } );
+    } );
+} // end of async_get_tweet_info()
+
+
+function async_fetch_media( media_url, responseType ) {
+    if ( ! responseType ) responseType = 'arraybuffer';
     
-    $playable_media = $tweet.find( 'div[data-testid="previewInterstitial"]' ) // ※動画を自動再生しない場合のみ存在する要素
-        .filter( function ( index ) {
-            return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
-        } )
-        .addClass( 'PlayableMedia' );
-    
-    if ( 0 < $playable_media.length ) {
-        $player = $playable_media.find( 'div[style*="background-image"]' ).addClass( 'PlayableMedia-player' );
-        
-        var $gif_marks = $playable_media.find( 'span' ).filter( function () {
-                var text = '';
+    return new Promise( ( resolve, reject ) => {
+        fetch_url( media_url, {
+            responseType,
+            
+            onload : ( response ) => {
+                if ( response.status < 200 || 300 <= response.status ) {
+                    resolve( {
+                        error : response.status + ' ' + response.statusText,
+                        response,
+                    } );
+                    
+                    return;
+                }
                 
-                $( this ).contents().each( function () {
-                    if ( this.nodeType != Node.TEXT_NODE ) return;
-                    text += ( this.textContent || '' ).trim();
+                resolve( {
+                    response : response.response,
                 } );
-                
-                return text.toUpperCase() == 'GIF';
+            },
+            
+            onerror : ( response ) => {
+                resolve( {
+                    error : response.status + ' ' + response.statusText,
+                    response,
+                } );
+            } // end of onerror()
+        } );
+    } );
+} // end of async_fetch_media()
+
+
+function async_download_zip( zip, zip_filename ) {
+    return new Promise( ( resolve, reject ) => {
+        var zip_content_type = 'blob',
+            url_scheme = 'blob';
+        
+        if ( IS_FIREFOX ) {
+            // TODO: ZIP を保存しようとすると、Firefox でセキュリティ警告が出る場合がある（「このファイルを開くのは危険です」(This file is not commonly downloaded.)）
+            // → Firefox のみ、Blob URL ではなく、Data URL(Base64) で様子見
+            zip_content_type =  'base64';
+            url_scheme = 'data';
+        }
+        
+        zip.generateAsync( { type : zip_content_type } )
+        .then( function ( zip_content ) {
+            if ( zip_content_type == 'base64' ) {
+                download_base64( zip_filename, zip_content );
+            }
+            else {
+                download_blob( zip_filename, zip_content );
+            }
+            resolve( {
+                error : false,
             } );
-        
-        if ( 0 < $gif_marks.length ) {
-            $playable_media.addClass( 'PlayableMedia--gif' );
-        }
-        else {
-            var background_image = $player.css( 'background-image' );
-            
-            if ( background_image ) {
-                if ( background_image.match( /tweet_video_thumb/ ) ) {
-                    $playable_media.addClass( 'PlayableMedia--gif' );
-                }
-                //else if ( background_image.match( /(?:_video_thumb\/\d+\/|\/media\/)/ ) ) {
-                //    $playable_media.addClass( 'PlayableMedia--video' );
-                //}
-                else if ( ! background_image.match( /card_img/ ) ) {
-                    $playable_media.addClass( 'PlayableMedia--video' );
-                }
-                else {
-                    // TODO: GIF / VIDEO 以外は未対応
-                    //$playable_media.addClass( 'PlayableMedia--vine' );
-                }
-            }
-            else {
-                if ( 0 < $playable_media.find( '[data-testid="playButton"]' ).length ) {
-                    $playable_media.addClass( 'PlayableMedia--video' );
-                }
-                else {
-                    $playable_media.removeClass( 'PlayableMedia' );
-                }
-            }
-        }
-    }
-    else {
-        var $video = $tweet.find( 'video' )
-                .filter( function ( index ) {
-                    return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
-                } ),
-            video_url = $video.attr( 'src' );
-        
-        if ( video_url ) {
-            // [2020.01.14] video が div[role="button"] 下に無いケースあり e.g.) https://twitter.com/ceres13627_5/status/1216894829201743873
-            //$playable_media = $player = $video.parents( 'div[role="button"]' ).addClass( 'PlayableMedia-player' );
-            $playable_media = $player = $video.parents().eq( 3 ).addClass( 'PlayableMedia-player' );
-            $playable_media.addClass( 'PlayableMedia' );
-            
-            if ( video_url.match( /video\.twimg\.com\/tweet_video\/.*?\.mp4/ ) ) {
-                $playable_media.addClass( 'PlayableMedia--gif' );
-            }
-            else {
-                $playable_media.addClass( 'PlayableMedia--video' );
-            }
-        }
-    }
-    
-    $playable_media = $tweet.find( '.PlayableMedia' );
-    
-    media_number = ( 0 < $playable_media.length ) ? 1 : $images.length;
-    
-    if ( ( ! tweet_id ) || ( media_number <= 0 ) || ( $action_list.find( '.' + media_button_class_name ).attr( 'data-media-number' ) == media_number ) ) {
-        return false;
-    }
-    
-    // ダウンロード用の情報取得向けに要素埋め込み
-    $tweet.find( '.' + SCRIPT_NAME + '_tweet_profile' ).remove();
-    
-    $tweet_profile_link = $( '<a class="js-user-profile-link js-action-profile" />' )
-        .addClass( SCRIPT_NAME + '_tweet_profile' )
-        .attr( {
-            'href' : '/' + screen_name
-        ,   'data-tweet-url' :  tweet_url
-        ,   'data-time-ms' : timestamp_ms
-        ,   'data-screen_name' :  screen_name
-        ,   'data-tweet-id' :  tweet_id
         } )
-        .css( 'display', 'none' );
-    
-    $tweet.append( $tweet_profile_link );
-    
-    screen_name = $tweet.find( 'a.js-user-profile-link.js-action-profile:first' ).attr( 'href' ).replace( /^.*\//, '' );
-    timestamp_ms = $tweet.find( '*[data-time-ms]' ).attr( 'data-time-ms' );
-    
-    var tooltip_title = ( OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) ? OPTIONS.OPEN_MEDIA_LINK : OPTIONS.DOWNLOAD_MEDIA_TITLE,
-        tooltip_alt_title = ( OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) ? OPTIONS.DOWNLOAD_MEDIA_TITLE : OPTIONS.OPEN_MEDIA_LINK,
-        $media_button_container = $( '<div><button/></div>' )
-            .addClass( 'ProfileTweet-action ' + media_button_class_name )
-            .addClass( 'js-tooltip' )
-            //.attr( 'data-original-title', 'Click: ' + tooltip_title + ' / \n' + ( IS_MAC ? '[option]' : '[Alt]' ) + '+Click: ' + tooltip_alt_title )
-            .attr( 'title', 'Click: ' + tooltip_title + ' / \n' + ( IS_MAC ? '[option]' : '[Alt]' ) + '+Click: ' + tooltip_alt_title )
-            .attr( 'data-media-number', media_number )
-            .css( {
-                'display' : 'none'
-            } ),
-        $media_button = $media_button_container.find( 'button:first' )
-            .addClass( 'btn' );
-    
-    $action_list.find( '.' + media_button_class_name ).remove();
-    
-    
-    function is_open_image_mode( event ) {
-        return ( ( ( ! OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) && ( event.altKey ) ) || ( ( OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) && ( ! event.altKey ) ) );
-    } // end of is_open_image_mode()
-    
-    
-    function get_error_message( jqXHR ) {
-        var message = '';
-        
-        switch ( jqXHR.status ) {
-            case 401 :
-                message = '(Unauthorized)';
-                break;
-            case 403 :
-                message = '(Forbidden)';
-                break;
-            case 429 :
-                try {
-                    message = '(It will be reset after about ' + ~~( jqXHR.getResponseHeader( 'x-rate-limit-reset' ) - new Date().getTime() / 1000 ) + ' seconds)';
-                }
-                catch ( error ) {
-                }
-                break;
-        }
-        return message;
-    } // end of get_error_message()
-    
-    
-    var image_download_handler = ( function () {
-        var clickable = true;
-        
-        function open_images( event ) {
-            var image_urls = [];
-            
-            $images.each( function ( image_index ) {
-                var $image = $( this ),
-                    image_url = get_img_url_orig( $image.attr( 'src' ) );
-                
-                //image_urls.unshift( image_url );
-                image_urls.push( image_url );
+        .catch( function ( error ) {
+            resolve( {
+                error,
             } );
+        } );
+    } );
+} // end of async_download_zip()
+
+
+function setup_image_download_button( $tweet, $media_button ) {
+    $media_button.text( OPTIONS.IMAGE_DOWNLOAD_LINK_TEXT );
+    
+    var clickable = true,
+        image_info_fixed = false,
+        image_urls = [],
+        tweet_info = null,
+        created_at = null,
+        zip = null,
+        
+        disable_button = () => {
+            clickable = false;
+            $media_button.css( 'cursor', 'progress' ).off( 'click' );
+        },
+        
+        enable_button = () => {
+            zip = null;
+            $media_button.css( 'cursor', 'pointer' ).on( 'click', click_handler );
+            clickable = true;
+        },
+        
+        open_images = () => {
+            if ( image_urls.length < 1 ) {
+                log_error( 'image url could not be found' );
+                alert( 'Image URL could not be found !' );
+                enable_button();
+                return;
+            }
             
             if ( typeof extension_functions != 'undefined' ) {
                 extension_functions.open_multi_tabs( image_urls );
             }
             else {
-                image_urls.reverse().forEach( function ( image_url ) {
-                    w.open( image_url );
-                } );
+                image_urls.reverse().map( ( image_url ) => w.open( image_url ) );
             }
-        } // end of open_images()
+            enable_button();
+        },
         
-        
-        return function ( event ) {
-            event.stopPropagation();
-            event.preventDefault();
-            
-            // ボタン挿入時には、画像の数が確定していない場合がある→クリック直後に取得
-            $images = $tweet.find( 'div[aria-label] > img[src*="//pbs.twimg.com/media/"]' )
-                .filter( function ( index ) {
-                    return ( $( this ).parents( 'div[role="link"],div[role="blockquote"]' ).length <= 0 ); // 引用ツイート中画像は対象としない
-                } )
-                .sort( function ( img_a, img_b ) {
+        download_images = async () => {
+            if ( ! image_info_fixed ) {
+                var api_result = await async_get_tweet_info( tweet_info.tweet_id );
+                
+                if ( api_result.tweet_info ) {
                     try {
-                        var num_a = parseInt( $( img_a ).parents( 'a[href]' ).attr( 'href' ).replace( /^.*\/photo\//, '' ), 10 ),
-                            num_b = parseInt( $( img_b ).parents( 'a[href]' ).attr( 'href' ).replace( /^.*\/photo\//, '' ), 10 );
-                        
-                        if ( num_a < num_b ) {
-                            return -1;
+                        try {
+                            image_urls = api_result.tweet_info.extended_entities.media.map( ( media ) => {
+                                return get_img_url( media.media_url_https, ( media.features.orig ) ? 'orig' : 'large' );
+                            } );
                         }
-                        else if ( num_b < num_a ) {
-                            return 1;
+                        catch ( error ) {
+                            image_urls = api_result.tweet_info.entities.media.map( ( media ) => {
+                                return get_img_url( media.media_url_https, ( media.features.orig ) ? 'orig' : 'large' );
+                            } );
                         }
-                        return 0;
+                        created_at = api_result.tweet_info.created_at;
+                        image_info_fixed = true;
                     }
                     catch ( error ) {
-                        return 0;
+                        log_error( 'failed to analyze tweet_info', error );
                     }
-                } );
-            
-            if ( $images.length != media_number ) {
-                log_debug( 'unmatch media number', media_number, '=>', $images.length );
-                media_number = $images.length;
-                $media_button_container.attr( 'data-media-number', media_number );
+                }
+                else {
+                    log_error( 'failed to get tweet_info', api_result );
+                }
             }
-            
-            if ( is_open_image_mode( event ) ) {
-                open_images( event );
-                return;
-            }
-            
-            if ( ! clickable ) {
-                return;
-            }
-            clickable = false;
-            $media_button.css( 'cursor', 'progress' );
-            
-            var image_info_list = [],
-                download_counter = $images.length,
-                date = new Date( parseInt( timestamp_ms, 10 ) ),
-                timestamp = ( timestamp_ms ) ? format_date( date, 'YYYYMMDD_hhmmss' ) : '',
-                zipdate = adjust_date_for_zip( date ),
-                media_prefix = 'img',
-                zip = null;
             
             zip = new JSZip();
             
+            var image_index = 0,
+                timestamp_ms = created_at ? new Date( created_at ).getTime() : tweet_info.timestamp_ms,
+                date = new Date( parseInt( timestamp_ms, 10 ) ),
+                timestamp = format_date( date, 'YYYYMMDD_hhmmss' ),
+                zipdate = adjust_date_for_zip( date );
             
-            function clean_up() {
-                zip = null;
+            for ( var image_url of image_urls ) {
+                var fetch_result = await async_fetch_media( image_url, 'arraybuffer' );
                 
-                clickable = true;
-                $media_button.css( 'cursor', 'pointer' );
-            } // end of clean_up()
-            
-            
-            function download_completed() {
-                clean_up();
-            } // end of download_completed()
-            
-            
-            function download_error() {
-                clean_up();
-            } // end of download_error()
-            
-            
-            function set_result( target_image_index, image_result ) {
-                if ( ! image_result ) {
-                    image_result = {
-                        error : '[bug] unknown error'
-                    };
+                if ( fetch_result.error ) {
+                    log_error( 'download failure', image_url, fetch_result.error, fetch_result.response );
+                    continue;
                 }
                 
-                image_info_list[ target_image_index ].result = image_result;
+                var image_filename = [
+                        tweet_info.screen_name,
+                        tweet_info.tweet_id,
+                        timestamp,
+                        'img' + ( image_index + 1 ),
+                    ].join( '-' ) + '.' + get_img_extension( image_url );
                 
-                if ( 0 < --download_counter ) {
-                    return;
-                }
-                
-                $.each( image_info_list, function ( image_index, image_info ) {
-                    var image_result = image_info.result,
-                        img_extension = get_img_extension( image_info.image_url );
-                    
-                    if ( image_info.error ) {
-                        log_error( image_info.image_url, '=>', image_info.error );
-                        return;
-                    }
-                    
-                    if ( zip && image_result.arraybuffer ) {
-                        var image_filename = [ screen_name, tweet_id, timestamp, media_prefix + ( image_index + 1 ) ].join( '-' ) + '.' + img_extension;
-                        
-                        zip.file( image_filename, image_result.arraybuffer, {
-                            date : zipdate
-                        } );
-                        
-                        delete image_result.arraybuffer;
-                    }
-                    else {
-                        log_error( image_info.image_url, '=> [bug] unknown error' );
-                    }
+                zip.file( image_filename, fetch_result.response, {
+                    date: zipdate,
                 } );
                 
-                var zip_content_type = 'blob',
-                    url_scheme = 'blob',
-                    zip_filename = [ screen_name, tweet_id, timestamp, media_prefix ].join( '-' ) + '.zip';
-                        
+                image_index ++;
+            }
+            
+            var zip_filename = [
+                    tweet_info.screen_name,
+                    tweet_info.tweet_id,
+                    timestamp,
+                    'img',
+                ].join( '-' ) + '.zip',
                 
-                if ( IS_FIREFOX ) {
-                    zip_content_type =  'base64';
-                    url_scheme = 'data';
-                }
+                download_result = await async_download_zip( zip, zip_filename );
+            
+            if ( download_result.error ) {
+                log_error( 'Error in zip.generateAsync()', download_result.error );
+                alert( 'ZIP download failed !' );
+            }
+            enable_button();
+        },
+        
+        click_handler = ( $event ) => {
+            if ( ! clickable ) {
+                return;
+            }
+            
+            disable_button();
+            
+            $event.stopPropagation();
+            $event.preventDefault();
+            
+            tweet_info = parse_tweet( $tweet );
+            
+            if ( ! image_info_fixed ) {
+                // ボタン挿入時には画像の数が確定していない場合があるため（APIにより確定していない限り）画像情報を取得し直す
+                var image_info_list = [];
                 
-                if ( zip ) {
-                    zip.generateAsync( { type : zip_content_type } )
-                    .then( function ( zip_content ) {
-                        // TODO: ZIP を保存しようとすると、Firefox でセキュリティ警告が出る場合がある（「このファイルを開くのは危険です」(This file is not commonly downloaded.)）
-                        // → Firefox のみ、Blob URL ではなく、Data URL(Base64) で様子見
-                        if ( zip_content_type == 'base64' ) {
-                            download_base64( zip_filename, zip_content );
-                        }
-                        else {
-                            download_blob( zip_filename, zip_content );
-                        }
-                        
-                        download_completed();
-                    } )
-                    .catch( function ( error ) {
-                        log_error( 'Error in zip.generateAsync()', error );
-                        
-                        alert( 'Sorry, ZIP download failed !' );
-                        download_error();
+                tweet_info.$own_image_links.each( function () {
+                    var $image_link = $( this );
+                    
+                    image_info_list.push( {
+                        id : parseInt( ( $image_link.attr( 'href' ) || '0' ).replace( /^.*\/photo\//, '' ), 10 ),
+                        image_url : $image_link.find( 'div[aria-label] > img[src*="//pbs.twimg.com/media/"]' ).attr( 'src' ),
+                        // TODO: まれにDOMから img[src] が取得できないケースあり（例: https://twitter.com/furyutei/status/1410195533956751362）
                     } );
+                } );
+                
+                image_info_list.sort( ( a, b ) => a.id - b.id );
+                image_urls = image_info_list
+                    .filter( image_info => image_info.image_url )
+                    .map( image_info => get_img_url_orig( image_info.image_url ) );
+            }
+            
+            if ( is_open_media_mode( $event ) ) {
+                open_images();
+            }
+            else {
+                download_images();
+            }
+        };
+    
+    enable_button();
+} // end of setup_image_download_button()
+
+
+function setup_video_download_button( $tweet, $media_button ) {
+    $media_button.text( OPTIONS.VIDEO_DOWNLOAD_LINK_TEXT );
+    
+    var clickable = true,
+        video_url = null,
+        tweet_info = null,
+        media_prefix = 'vid',
+        created_at = null,
+        
+        disable_button = () => {
+            clickable = false;
+            $media_button.css( 'cursor', 'progress' ).off( 'click' );
+        },
+        
+        enable_button = () => {
+            $media_button.css( 'cursor', 'pointer' ).on( 'click', click_handler );
+            clickable = true;
+        },
+        
+        update_video_info = async () => {
+            var api_result = await async_get_tweet_info( tweet_info.tweet_id );
+            
+            if ( ! api_result.tweet_info ) {
+                log_error( 'failed to get tweet_info', api_result );
+                alert( 'Failed to get tweet information !' );
+                return;
+            }
+            
+            created_at = api_result.tweet_info.created_at;
+            
+            try {
+                media_prefix = ( api_result.tweet_info.extended_entities.media[ 0 ].type == 'animated_gif' ) ? 'gif' : 'vid';
+            }
+            catch ( error ) {
+            }
+            
+            try {
+                switch ( media_prefix ) {
+                    case 'gif' : ( () => {
+                        video_url = api_result.tweet_info.extended_entities.media[ 0 ].video_info.variants[ 0 ].url;
+                    } )();
+                    break;
+                    
+                    default : await ( async () => {
+                        var video_info;
+                        
+                        try {
+                            try {
+                                video_info = api_result.tweet_info.extended_entities.media[ 0 ].video_info;
+                            }
+                            catch ( error ) {
+                                // [Issue #54: Get video from tweets generated with Twitter for Advertisers tool](https://github.com/furyutei/twMediaDownloader/issues/54#issuecomment-806267490) への対応
+                                var unified_card_info = JSON.parse( api_result.tweet_info.card.binding_values.unified_card.string_value );
+                                
+                                video_info = unified_card_info.media_entities[ unified_card_info.component_objects.media_1.data.id ].video_info;
+                            }
+                            var variants = video_info.variants,
+                                max_bitrate = -1;
+                            
+                            variants.map( ( variant ) => {
+                                if ( ( variant.content_type == 'video/mp4' ) && ( variant.bitrate ) && ( max_bitrate < variant.bitrate ) ) {
+                                    video_url = variant.url;
+                                    max_bitrate = variant.bitrate;
+                                }
+                            } );
+                        }
+                        catch ( error ) {
+                            // [Issue #54: Get video from tweets generated with Twitter for Advertisers tool](https://github.com/furyutei/twMediaDownloader/issues/54) への対応
+                            try {
+                                var binding_values = api_result.tweet_info.card.binding_values,
+                                    stream_url = ( binding_values.player_stream_url || binding_values.amplify_url_vmap ).string_value;
+                                
+                                if ( /\.mp4(?:\?|$)/.test( stream_url ) ) {
+                                    video_url = stream_url;
+                                    return;
+                                }
+                                
+                                await new Promise( ( resolve, reject ) => {
+                                    $.ajax( {
+                                        type : 'GET',
+                                        url : stream_url,
+                                        dataType: 'xml',
+                                    } )
+                                    .done( ( xml, textStatus, jqXHR ) => {
+                                        var max_bitrate = -1;
+                                        
+                                        $( xml ).find( 'tw\\:videoVariants > tw\\:videoVariant' ).each( function () {
+                                            var $variant = $( this ),
+                                                url = decodeURIComponent( $variant.attr( 'url' ) || '' ),
+                                                content_type = $variant.attr( 'content_type' ),
+                                                bit_rate = parseInt( $variant.attr( 'bit_rate' ), 10 );
+                                            
+                                            if ( ( content_type == 'video/mp4' ) && ( bit_rate ) && ( max_bitrate < bit_rate ) ) {
+                                                video_url = url;
+                                                max_bitrate = bit_rate;
+                                            }
+                                        } );
+                                        resolve();
+                                    } )
+                                    .fail( function ( jqXHR, textStatus, errorThrown ) {
+                                        var error_message = get_jqxhr_error_message( jqXHR );
+                                        
+                                        log_error( tweet_info.tweet_id, textStatus, jqXHR.status + ' ' + jqXHR.statusText, error_message );
+                                        resolve();
+                                    } )
+                                    .always( () => {
+                                    } );
+                                } );
+                            }
+                            catch ( error2 ) {
+                                log_error( tweet_info.tweet_id, error, error2 );
+                                // TODO: 外部動画等は未サポート
+                                log_info( 'response(api_result):', api_result );
+                            }
+                        }
+                    } )();
+                    break;
+                }
+            }
+            catch ( error ) {
+                log_error( 'failed to analyze tweet_info', error );
+                alert( 'Faild to analyze tweet information !' );
+            }
+        },
+        
+        open_video = () => {
+            if ( video_url ) {
+                w.open( video_url );
+                enable_button();
+                return;
+            }
+            
+            var child_window;
+            
+            // ポップアップブロック対策
+            if ( IS_FIREFOX ) {
+                child_window = w.open( 'about:blank', '_blank' ); // 空ページを開いておく
+                // TODO: LOADING_IMAGE_URL だと fetch() 後には child_window が DeadObject 化してしまう
+            }
+            else {
+                child_window = w.open( LOADING_IMAGE_URL, '_blank' ); // ダミー画像を開いておく
+            }
+            
+            ( async () => {
+                await update_video_info();
+                
+                if ( video_url ) {
+                    child_window.location.replace( video_url );
                 }
                 else {
-                    log_error( 'zip was already removed' );
+                    child_window.close();
                 }
-            } // end of set_result()
+                enable_button();
+            } )();
+        },
+        
+        download_video = async () => {
+            if ( ! video_url ) {
+                await update_video_info();
+            }
             
+            if ( ! video_url ) {
+                enable_button();
+                return;
+            }
             
-            function load_image( image_index, first_image_url, current_image_url ) {
-                if ( ! current_image_url ) {
-                    current_image_url = first_image_url;
-                }
-                
-                var extension_list = [ 'png', 'jpg', 'gif' ],
-                    next_extension_map = {
-                        'png' : 'gif'
-                    ,   'gif' : 'jpg'
-                    ,   'jpg' : 'png'
-                    },
-                    first_extension = get_img_extension( first_image_url, extension_list ),
-                    current_extension = get_img_extension( current_image_url, extension_list ),
-                    image_filename = [ screen_name, tweet_id, timestamp, media_prefix + ( image_index + 1 ) ].join( '-' ) + '.' + current_extension;
-                
-                image_info_list[ image_index ].image_url = current_image_url;
-                
-                fetch_url( current_image_url, {
-                    responseType : 'arraybuffer'
-                ,   onload : function ( response ) {
-                        if ( response.status < 200 || 300 <= response.status ) {
-                            // 元の拡張子が png でも、png:orig が取得できない場合がある
-                            // → gif:orig なら取得できるケース有り・ステータスチェックし、エラー時にはリトライする
-                            var next_extension = next_extension_map[ current_extension ];
-                            
-                            if ( ( ! next_extension ) || ( next_extension == first_extension ) ) {
-                                image_info_list[ image_index ].image_url = first_image_url;
-                                set_result( image_index, {
-                                    error : response.status + ' ' + response.statusText
-                                } );
-                                return;
-                            }
-                            load_image( image_index, first_image_url, current_image_url.replace( '.' + current_extension, '.' + next_extension ) );
-                            return;
-                        }
-                        set_result( image_index, {
-                            arraybuffer : response.response
-                        } );
-                    } // end of onload()
-                ,   onerror : function ( response ) {
-                        set_result( image_index, {
-                            error : response.status + ' ' + response.statusText
-                        } );
-                    } // end of onerror()
-                } );
-            } // end of load_image()
+            var fetch_result = await async_fetch_media( video_url, 'blob' );
             
+            if ( fetch_result.error ) {
+                log_error( 'download failure', video_url, fetch_result.error, fetch_result.response );
+                alert( 'Video download failed !' );
+                enable_button();
+                return;
+            }
             
-            $images.each( function ( image_index ) {
-                var $image = $( this ),
-                    image_url = get_img_url_orig( $image.attr( 'src' ) ),
-                    image_info = {
-                        image_url : image_url,
-                        result : {}
-                    };
-                
-                image_info_list.push( image_info );
-                
-                load_image( image_index, image_url );
-            } );
+            var timestamp_ms = created_at ? new Date( created_at ).getTime() : tweet_info.timestamp_ms,
+                date = new Date( parseInt( timestamp_ms, 10 ) ),
+                timestamp = format_date( date, 'YYYYMMDD_hhmmss' ),
+                filename = [
+                    tweet_info.screen_name,
+                    tweet_info.tweet_id,
+                    timestamp,
+                    media_prefix + '1'
+                ].join( '-' ) + '.' + get_video_extension( video_url );
+            
+            download_blob( filename, fetch_result.response );
+            enable_button();
+        },
+        
+        click_handler = ( $event ) => {
+            if ( ! clickable ) {
+                return;
+            }
+            
+            disable_button();
+            
+            $event.stopPropagation();
+            $event.preventDefault();
+            
+            tweet_info = parse_tweet( $tweet );
+            update_video_mark( tweet_info );
+            
+            if ( is_open_media_mode( $event ) ) {
+                open_video();
+            }
+            else {
+                download_video();
+            }
         };
-    } )(); // end of image_download_handler()
-    
-    
-    function activate_video_download_link( video_url, media_prefix ) {
-        var timestamp = ( timestamp_ms ) ? format_date( new Date( parseInt( timestamp_ms, 10 ) ), 'YYYYMMDD_hhmmss' ) : '',
-            filename = [ screen_name, tweet_id, timestamp, media_prefix + '1' ].join( '-' ) + '.' + get_video_extension( video_url ),
-            clickable = true;
         
-        $media_button
-            .prop( 'data-video-url', video_url )
-            .click( function ( event ) {
-                event.stopPropagation();
-                event.preventDefault();
-                
-                if ( is_open_image_mode( event ) ) {
-                    w.open( video_url );
-                    return;
-                }
-                
-                if ( ! clickable ) {
-                    return;
-                }
-                clickable = false;
-                $media_button.css( 'cursor', 'progress' );
-                
-                fetch_url( video_url, {
-                    responseType : 'blob'
-                ,   onload : function ( response ) {
-                        download_blob( filename, response.response );
-                    }
-                ,   onerror : function ( response ) {
-                        log_error( video_url, 'fetch failure' );
-                    }
-                ,   oncomplete : function ( response ) {
-                        clickable = true;
-                        $media_button.css( 'cursor', 'pointer' );
-                    }
-                } );
-            } );
-        
-        $media_button_container.css( 'display', 'inline-block' );
-    } // end of activate_video_download_link()
+    enable_button();
+} // end of setup_video_download_button()
+
+
+function add_media_button_to_tweet( $tweet ) {
+    var media_button_class_name = SCRIPT_NAME + '_media_button',
+        tweet_profile_class_name = SCRIPT_NAME + '_tweet_profile';
     
+    var tweet_info = parse_tweet( $tweet );
+
+    if ( ! tweet_info.is_min_render_complete ) {
+        return false;
+    }
     
-    if ( ( $playable_media.length <= 0 ) && ( 0 < $images.length ) ) {
+    if ( ! tweet_info.has_media ) {
+        return false;
+    }
+    
+    if ( tweet_info.has.images ) {
         if ( ! OPTIONS.IMAGE_DOWNLOAD_LINK ) {
-            return;
+            return false;
         }
-        
-        $media_button
-            .text( OPTIONS.IMAGE_DOWNLOAD_LINK_TEXT )
-            .prop( 'data-tweet-url', $tweet.attr( 'data-permalink-path' ) )
-            .click( function ( event ) {
-                image_download_handler( event );
-            } );
-        
-        $media_button_container.css( 'display', 'inline-block' );
     }
     else {
         if ( ! OPTIONS.VIDEO_DOWNLOAD_LINK ) {
-            return;
+            return false;
         }
-        
-        if ( ! OPTIONS.ENABLE_VIDEO_DOWNLOAD ) {
-            if ( ( ! $playable_media.hasClass( 'PlayableMedia--gif' ) ) || ( ! OPTIONS.QUICK_LOAD_GIF ) ) {
-                return;
-            }
-        }
-        
-        if ( $playable_media.length <= 0 ) {
-            return;
-        }
-        
-        $media_button.text( OPTIONS.VIDEO_DOWNLOAD_LINK_TEXT );
-
-        if ( $playable_media.hasClass( 'PlayableMedia--gif' ) || $playable_media.hasClass( 'PlayableMedia--vine' ) ) {
-            var media_prefix = $playable_media.hasClass( 'PlayableMedia--gif' ) ? 'gif' : 'vid';
-            
-            $media_button.click( function ( event ) {
-                //$media_button.off( 'click' );
-                
-                event.stopPropagation();
-                event.preventDefault();
-                
-                if ( OPTIONS.QUICK_LOAD_GIF && ( media_prefix == 'gif' ) ) {
-                    try {
-                        var video_url = get_gif_video_url_from_playable_media( $playable_media );
-                        
-                        $media_button.off( 'click' );
-                        activate_video_download_link( video_url, media_prefix );
-                        
-                        if ( is_open_image_mode( event ) ) {
-                            w.open( video_url );
-                        }
-                        else {
-                            $media_button.click();
-                        }
-                        return;
-                    }
-                    catch ( error ) {
-                    }
-                }
-                
-                var video_info_url = API_VIDEO_CONFIG_BASE.replace( '#TWEETID#', tweet_id ),
-                    child_window;
-                
-                if ( is_open_image_mode( event ) ) {
-                    // ポップアップブロック対策
-                    if ( IS_FIREFOX ) {
-                        child_window = w.open( 'about:blank', '_blank' ); // 空ページを開いておく
-                        // TODO: LOADING_IMAGE_URL だと fetch() 後には child_window が DeadObject 化してしまう
-                    }
-                    else {
-                        child_window = w.open( LOADING_IMAGE_URL, '_blank' ); // ダミー画像を開いておく
-                    }
-                }
-                
-                /*
-                //initialize_twitter_api()
-                //.then( function () {
-                //    return twitter_api_get_json( video_info_url, { auto_reauth : true } );
-                //} )
-                */
-                twitter_api_get_json( video_info_url )
-                .done( function ( json, textStatus, jqXHR ) {
-                    $media_button.off( 'click' );
-                    
-                    var video_url;
-                    
-                    try {
-                        video_url = json.track.playbackUrl;
-                    }
-                    catch ( error ) {
-                        video_url = json.extended_entities.media[ 0 ].video_info.variants[ 0 ].url;
-                    }
-                    
-                    if ( ! is_video_url( video_url ) ) {
-                        $media_button_container.css( 'display', 'none' );
-                        if ( child_window ) {
-                            child_window.close();
-                        }
-                        return;
-                    }
-                    activate_video_download_link( video_url, media_prefix );
-                    
-                    if ( is_open_image_mode( event ) ) {
-                        if ( child_window ) {
-                            child_window.location.replace( video_url );
-                        }
-                        else {
-                            w.open( video_url );
-                        }
-                    }
-                    else {
-                        $media_button.click();
-                    }
-                } )
-                .fail( function ( jqXHR, textStatus, errorThrown ) {
-                    var error_message = get_error_message( jqXHR );
-                    
-                    log_error( video_info_url, textStatus, jqXHR.status + ' ' + jqXHR.statusText, error_message );
-                    alert( jqXHR.status + ' ' + jqXHR.statusText + ' ' + error_message );
-                    //$media_button_container.css( 'display', 'none' );
-                } )
-                .always( function () {
-                } );
-            } );
-            
-            $media_button_container.css( 'display', 'inline-block' );
-        }
-        else if ( $playable_media.hasClass( 'PlayableMedia--video' ) ) {
-            $media_button.click( function ( event ) {
-                //$media_button.off( 'click' );
-                
-                event.stopPropagation();
-                event.preventDefault();
-                
-                var tweet_info_url = API_TWEET_SHOW_BASE.replace( '#TWEETID#', tweet_id ),
-                    child_window;
-                
-                if ( is_open_image_mode( event ) ) {
-                    // ポップアップブロック対策
-                    if ( IS_FIREFOX ) {
-                        child_window = w.open( 'about:blank', '_blank' ); // 空ページを開いておく
-                        // TODO: LOADING_IMAGE_URL だと fetch() 後には child_window が DeadObject 化してしまう
-                    }
-                    else {
-                        child_window = w.open( LOADING_IMAGE_URL, '_blank' ); // ダミー画像を開いておく
-                    }
-                }
-                
-                /*
-                //initialize_twitter_api()
-                //.then( function () {
-                //    return twitter_api_get_json( tweet_info_url, { auto_reauth : true } );
-                //} )
-                */
-                //twitter_api_get_json( tweet_info_url )
-                api2_get_tweet_info( tweet_id )
-                .done( function ( json, textStatus, jqXHR ) {
-                    $media_button.off( 'click' );
-                    
-                    var video_info = null,
-                        video_url = null,
-                        variants = [],
-                        max_bitrate = -1,
-                        
-                        finish = ( video_url ) => {
-                            if ( ! video_url ) {
-                                $media_button_container.css( 'display', 'none' );
-                                if ( child_window ) {
-                                    child_window.close();
-                                }
-                                return;
-                            }
-                            activate_video_download_link( video_url, 'vid' );
-                            
-                            if ( is_open_image_mode( event ) ) {
-                                if ( child_window ) {
-                                    child_window.location.replace( video_url );
-                                }
-                                else {
-                                    w.open( video_url );
-                                }
-                            }
-                            else {
-                                $media_button.click();
-                            }
-                        };
-                    
-                    try {
-                        try {
-                            video_info = json.extended_entities.media[ 0 ].video_info;
-                        }
-                        catch ( error ) {
-                            // [Issue #54: Get video from tweets generated with Twitter for Advertisers tool](https://github.com/furyutei/twMediaDownloader/issues/54#issuecomment-806267490) への対応
-                            var unified_card_info = JSON.parse( json.card.binding_values.unified_card.string_value );
-                            
-                            video_info = unified_card_info.media_entities[ unified_card_info.component_objects.media_1.data.id ].video_info;
-                        }
-                        variants = video_info.variants;
-                        
-                        variants.forEach( function ( variant ) {
-                            if ( ( variant.content_type == 'video/mp4' ) && ( variant.bitrate ) && ( max_bitrate < variant.bitrate ) ) {
-                                video_url = variant.url;
-                                max_bitrate = variant.bitrate;
-                            }
-                        } );
-                    }
-                    catch ( error ) {
-                        // [Issue #54: Get video from tweets generated with Twitter for Advertisers tool](https://github.com/furyutei/twMediaDownloader/issues/54) への対応
-                        try {
-                            var binding_values = json.card.binding_values,
-                                stream_url = ( binding_values.player_stream_url || binding_values.amplify_url_vmap ).string_value;
-                            
-                            if ( /\.mp4(?:\?|$)/.test( stream_url ) ) {
-                                finish( stream_url );
-                                return;
-                            }
-                            
-                            $.ajax( {
-                                type : 'GET',
-                                url : stream_url,
-                                dataType: 'xml',
-                            } )
-                            .done( ( xml, textStatus, jqXHR ) => {
-                                $( xml ).find( 'tw\\:videoVariants > tw\\:videoVariant' ).each( function () {
-                                    var $variant = $( this ),
-                                        url = decodeURIComponent( $variant.attr( 'url' ) || '' ),
-                                        content_type = $variant.attr( 'content_type' ),
-                                        bit_rate = parseInt( $variant.attr( 'bit_rate' ), 10 );
-                                    
-                                    if ( ( content_type == 'video/mp4' ) && ( bit_rate ) && ( max_bitrate < bit_rate ) ) {
-                                        video_url = url;
-                                        max_bitrate = bit_rate;
-                                    }
-                                } );
-                            } )
-                            .fail( function ( jqXHR, textStatus, errorThrown ) {
-                                var error_message = get_error_message( jqXHR );
-                                
-                                log_error( tweet_info_url, textStatus, jqXHR.status + ' ' + jqXHR.statusText, error_message );
-                            } )
-                            .always( () => {
-                                finish( video_url );
-                            } );
-                            
-                            return;
-                        }
-                        catch ( error2 ) {
-                            //log_error( tweet_info_url, error );
-                            log_error( tweet_id, error, error2 );
-                            // TODO: 外部動画等は未サポート
-                            log_info( 'response(json):', json );
-                        }
-                    }
-                    
-                    finish( video_url );
-                } )
-                .fail( function ( jqXHR, textStatus, errorThrown ) {
-                    var error_message = get_error_message( jqXHR );
-                    
-                    log_error( tweet_info_url, textStatus, jqXHR.status + ' ' + jqXHR.statusText, error_message );
-                    alert( jqXHR.status + ' ' + jqXHR.statusText + ' ' + error_message );
-                    //$media_button_container.css( 'display', 'none' );
-                } )
-                .always( function () {
-                } );
-            } );
-            
-            $media_button_container.css( 'display', 'inline-block' );
-        }
+    }
+    
+    update_video_mark( tweet_info );
+    
+    var $action_list = ( 0 < tweet_info.$source_label_container.length ) ? tweet_info.$source_label_container : tweet_info.$action_list_container,
+        $media_button_container = $action_list.find( '.' + media_button_class_name );
+    
+    if ( 0 < $media_button_container.length ) {
+        return false;
+    }
+    
+    var tooltip_title = ( OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) ? OPTIONS.OPEN_MEDIA_LINK : OPTIONS.DOWNLOAD_MEDIA_TITLE,
+        tooltip_alt_title = ( OPTIONS.OPEN_MEDIA_LINK_BY_DEFAULT ) ? OPTIONS.DOWNLOAD_MEDIA_TITLE : OPTIONS.OPEN_MEDIA_LINK;
+    
+    $media_button_container = $( '<div class="ProfileTweet-action js-tooltip"><button/></div>' )
+        .addClass( media_button_class_name )
+        .attr( 'title', 'Click: ' + tooltip_title + ' / \n' + ( IS_MAC ? '[option]' : '[Alt]' ) + '+Click: ' + tooltip_alt_title )
+        .css( {
+            'display' : 'none'
+        } );
+    
+    var $media_button = $media_button_container.find( 'button:first' ).addClass( 'btn' );
+    
+    if ( tweet_info.has.images ) {
+        setup_image_download_button( $tweet, $media_button );
+    }
+    else {
+        setup_video_download_button( $tweet, $media_button );
     }
     
     var $action_more = $action_list.find( '.ProfileTweet-action--more' );
@@ -4602,6 +4584,8 @@ function add_media_button_to_tweet( $tweet ) {
     else {
         $action_list.append( $media_button_container );
     }
+    
+    $media_button_container.css( 'display', 'inline-block' );
     
     return ( 0 < $media_button_container.length );
 } // end of add_media_button_to_tweet()
@@ -4625,18 +4609,25 @@ function check_media_tweets( node ) {
         .filter( function () {
             var $tweet = $( this );
             
-            return ( ( 0 < $tweet.find( 'div[data-testid="tweet"]' ).length ) && ( 0 < $tweet.find( 'div[aria-label]' ).length ) && ( $tweet.find( '.' + SCRIPT_NAME + '_media_button' ).length <= 0 ) );
-        } )
-        .filter( function ( index ) {
-            var $tweet = $( this );
-            
-            return ( $tweet.find( 'a.' + SCRIPT_NAME + '_tweet_profile' ).length <= 0 );
+            return (
+                ( ! $tweet.hasClass( SCRIPT_NAME + '_touched' ) ) &&
+                ( 0 < $tweet.find( 'div[data-testid="tweet"]' ).length ) && 
+                ( 0 < $tweet.find( 'div[aria-label]' ).length ) && 
+                ( $tweet.find( '.' + SCRIPT_NAME + '_media_button' ).length <= 0 ) &&
+                ( $tweet.find( 'a.' + SCRIPT_NAME + '_tweet_profile' ).length <= 0 )
+            );
         } );
     
-    $tweets = $tweets.filter( function ( index ) {
-        var $tweet = $( this );
+    $tweets = $tweets.filter( function () {
+        var $tweet = $( this ),
+            is_button_added = add_media_button_to_tweet( $tweet );
         
-        return add_media_button_to_tweet( $tweet );
+        /*
+        //if ( is_button_added ) {
+        //    $tweet.addClass( SCRIPT_NAME + '_touched' );
+        //}
+        */
+        return is_button_added;
     } );
     
     if ( 0 < $tweets.length ) log_debug( 'check_media_tweets():', $tweets.length );
