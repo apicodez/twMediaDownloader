@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.24
+// @version         0.1.4.25
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -4611,8 +4611,8 @@ function check_media_tweets( node ) {
             
             return (
                 ( ! $tweet.hasClass( SCRIPT_NAME + '_touched' ) ) &&
-                ( 0 < $tweet.find( 'div[data-testid="tweet"]' ).length ) && 
-                ( 0 < $tweet.find( 'div[aria-label]' ).length ) && 
+                ( ( $tweet.attr( 'data-testid' ) == 'tweet' ) || ( 0 < $tweet.find( 'div[data-testid="tweet"]' ).length ) ) &&
+                ( 0 < $tweet.find( 'div[aria-label]' ).length ) &&
                 ( $tweet.find( '.' + SCRIPT_NAME + '_media_button' ).length <= 0 ) &&
                 ( $tweet.find( 'a.' + SCRIPT_NAME + '_tweet_profile' ).length <= 0 )
             );
