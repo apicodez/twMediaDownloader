@@ -2,7 +2,7 @@
     "manifest_version" : 2
 ,   "name" : "__MSG_ext_title__"
 ,   "short_name" : "__MSG_ext_short_name__"
-,   "version" : "0.1.4.26"
+,   "version" : "0.1.4.27"
 ,   "description" : "__MSG_ext_description__"
 ,   "author" : "furyu"
 ,   "default_locale" : "en"
@@ -51,6 +51,23 @@
         "default_icon" : "img/icon_16.png"
     ,   "default_title" : "__MSG_ext_title__"
     ,   "default_popup" : "html/options.html"
+    }
+,   "commands" : {
+        "bulk_download" : {
+            "suggested_key" : {
+                "default" : "Shift+Alt+D",
+                "mac" : "Shift+Alt+D"
+            },
+            "description" : "__MSG_BULK_DOWNLOAD__"
+        },
+        
+        "bulk_download_likes" : {
+            "suggested_key" : {
+                "default" : "Shift+Alt+L",
+                "mac" : "Shift+Alt+L"
+            },
+            "description" : "__MSG_BULK_DOWNLOAD_LIKES__"
+        }
     }
 ,   "applications": {
         "gecko": {

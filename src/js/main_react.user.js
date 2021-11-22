@@ -4947,6 +4947,13 @@ if ( typeof w.twMediaDownloader_chrome_init == 'function' ) {
     // Google Chorme 拡張機能から実行した場合、ユーザーオプションを読み込む
     w.twMediaDownloader_chrome_init( function ( user_options ) {
         initialize( user_options );
+    }, {
+        TwitterTimeline,
+        download_media_timeline,
+        judge_profile_timeline,
+        judge_search_timeline,
+        judge_notifications_timeline,
+        judge_bookmarks_timeline,
     } );
 }
 else {

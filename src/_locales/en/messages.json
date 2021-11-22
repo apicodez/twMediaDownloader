@@ -98,4 +98,10 @@
 ,   "DOMATION" : {
         "message" : "Your donation is welcome !"
     }
+,   "BULK_DOWNLOAD" : {
+        "message" : "Bulk Download"
+    }
+,   "BULK_DOWNLOAD_LIKES" : {
+        "message" : "Download \"Likes\" in bulk"
+    }
 }

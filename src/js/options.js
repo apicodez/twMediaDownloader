@@ -35,6 +35,27 @@ $( w ).on( ( IS_VIVALDI ) ? 'blur' : 'unload', function ( event ) {
     background_window.log_debug( '< reload_tabs() done >' );
 } );
 
+var get_active_tab_info = function() {
+        return new Promise( ( resolve, reject ) => {
+            chrome.tabs.query( { active : true, currentWindow : true }, tabs => {
+                if ( ( ! tabs ) || ( ! tabs[ 0 ] ) ) {
+                    reject();
+                    return;
+                }
+                var tab_info = background_window.CONTENT_TAB_INFOS[tabs[0].id];
+                if ( ! tab_info ) {
+                    reject();
+                    return;
+                }
+                if ( ! tab_info.url ) {
+                    reject();
+                    return;
+                }
+                tab_info.tab = tabs[ 0 ];
+                resolve( tab_info );
+            } );
+        } );
+    };
 
 $( async function () {
     var RADIO_KV_LIST = [
@@ -75,6 +96,73 @@ $( async function () {
                 
                 return option_keys;
             } )();
+    
+    var $bulk_download_button = $('input[name="BULK_DOWNLOAD"]'),
+        $bulk_download_likes_button = $('input[name="BULK_DOWNLOAD_LIKES"]');
+    
+    $bulk_download_button.hide();
+    $bulk_download_likes_button.hide();
+    
+    var active_tab_info = await get_active_tab_info().catch( error => ({}) );
+    
+    if ( active_tab_info.url ) {
+        var pathname = new URL( active_tab_info.url ).pathname,
+            pagename = ( pathname.match(/^\/([^/]+)/) || {} )[1],
+            bulk_download_is_ready = false,
+            bulk_download_likes_is_ready = false;
+        
+        switch ( pagename ) {
+            case 'home' :
+            case 'explore' :
+            case 'messages' :
+            case 'settings' : {
+                break;
+            }
+            case 'i' : {
+                if ( /^\/i\/bookmarks(?=\/|$)/.test(pathname) ) {
+                    bulk_download_is_ready = true;
+                }
+                break;
+            }
+            case 'search' :
+            case 'hashtag' :
+            case 'notifications' : {
+                bulk_download_is_ready = true;
+                break;
+            }
+            default : {
+                if ( /^\/[^/]+(\/(?:with_replies|media|likes))?\/?$/.test(pathname) ) {
+                    bulk_download_is_ready = true;
+                    bulk_download_likes_is_ready = true;
+                }
+                break;
+            }
+        }
+        
+        if ( bulk_download_is_ready ) {
+            $bulk_download_button.on( 'click', ( $event ) => {
+                background_window.bulk_download_request( active_tab_info.tab, 'media' );
+                window.close();
+            } );
+            $bulk_download_button.show();
+        }
+        if ( bulk_download_likes_is_ready ) {
+            $bulk_download_likes_button.on( 'click', ( $event ) => {
+                background_window.bulk_download_request( active_tab_info.tab, 'likes' );
+                window.close();
+            } );
+            $bulk_download_likes_button.show();
+        }
+    }
+    
+    $( 'input[name="DEFAULT"]' ).click( async function () {
+        await remove_values( OPTION_KEY_LIST );
+        value_updated = true;
+        
+        await set_all_evt();
+        //location.reload();
+    } );
+    
     
     STR_KV_LIST.forEach( function( str_kv ) {
         str_kv.val = chrome.i18n.getMessage( str_kv.key );

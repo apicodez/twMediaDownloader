@@ -10,6 +10,9 @@ if ( chrome.runtime.lastError ) {
 
 var SCRIPT_NAME = 'twMediaDownloader';
 
+var global_params = {},
+    current_url = location.href;
+
 
 function get_bool( value ) {
     if ( value === undefined ) {
@@ -41,6 +44,30 @@ function get_text( value ) {
 } // end of get_text()
 
 
+function send_content_scripts_info() {
+    chrome.runtime.sendMessage( {
+        type : 'NOTIFICATION_ONLOAD',
+        info : {
+            url : location.href,
+        }
+    }, function ( response ) {
+        /*
+        //window.addEventListener( 'beforeunload', function ( event ) {
+        //    // TODO: メッセージが送信できないケース有り ("Uncaught TypeError: Cannot read property 'sendMessage' of undefined")
+        //    chrome.runtime.sendMessage( {
+        //        type : 'NOTIFICATION_ONUNLOAD',
+        //        info : {
+        //            url : location.href,
+        //            event : 'onbeforeunload',
+        //        }
+        //    }, function ( response ) {
+        //    } );
+        //} );
+        */
+    } );
+} // end of send_content_scripts_info()
+
+
 function get_init_function( message_type, option_name_to_function_map, namespace ) {
     var option_names = [];
     
@@ -65,7 +92,7 @@ function get_init_function( message_type, option_name_to_function_map, namespace
         return options;
     }
     
-    function init( callback ) {
+    function init( callback, specified_params ) {
         // https://developer.chrome.com/extensions/runtime#method-sendMessage
         chrome.runtime.sendMessage( {
             type : message_type
@@ -75,6 +102,14 @@ function get_init_function( message_type, option_name_to_function_map, namespace
             var options = analyze_response( response );
             callback( options );
         } );
+        
+        global_params = Object.assign( global_params, specified_params || {} );
+        
+        new MutationObserver( ( records ) => {
+            if ( current_url == location.href ) return;
+            current_url = location.href;
+            send_content_scripts_info();
+        } ).observe( document.body, { childList : true, subtree : true } );
     }
     
     return init;
@@ -209,31 +244,9 @@ if ( ( typeof content != 'undefined' ) && ( typeof content.XMLHttpRequest == 'fu
     } );
 }
 
-// content_scripts の情報を渡す
-chrome.runtime.sendMessage( {
-    type : 'NOTIFICATION_ONLOAD',
-    info : {
-        url : location.href,
-    }
-}, function ( response ) {
-    /*
-    //window.addEventListener( 'beforeunload', function ( event ) {
-    //    // TODO: メッセージが送信できないケース有り ("Uncaught TypeError: Cannot read property 'sendMessage' of undefined")
-    //    chrome.runtime.sendMessage( {
-    //        type : 'NOTIFICATION_ONUNLOAD',
-    //        info : {
-    //            url : location.href,
-    //            event : 'onbeforeunload',
-    //        }
-    //    }, function ( response ) {
-    //    } );
-    //} );
-    */
-} );
-
 chrome.runtime.onMessage.addListener( function ( message, sender, sendResponse ) {
     switch ( message.type )  {
-        case 'RELOAD_REQUEST' :
+        case 'RELOAD_REQUEST' : {
             sendResponse( {
                 result : 'OK'
             } );
@@ -242,6 +255,65 @@ chrome.runtime.onMessage.addListener( function ( message, sender, sendResponse )
                 location.reload();
             }, 100 );
             break;
+        }
+        case 'BULK_DOWNLOAD_REQUEST' : {
+            var result = 'NG';
+            
+            if ( global_params.TwitterTimeline ) {
+                var {
+                        TwitterTimeline,
+                        download_media_timeline,
+                        judge_profile_timeline,
+                        judge_search_timeline,
+                        judge_notifications_timeline,
+                        judge_bookmarks_timeline,
+                    } = global_params,
+                    TIMELINE_TYPE = TwitterTimeline.TIMELINE_TYPE;
+                
+                switch ( message.kind ) {
+                    case 'likes': {
+                        if ( judge_profile_timeline() ) {
+                            download_media_timeline( {
+                                is_for_likes_timeline : true,
+                                is_for_notifications_timeline : false,
+                                is_for_bookmarks_timeline : false,
+                                timeline_type : TIMELINE_TYPE.likes,
+                            } );
+                            result = 'OK';
+                        }
+                        break;
+                    }
+                    default : {
+                        var is_profile_timeline = judge_profile_timeline(),
+                            is_search_timeline = judge_search_timeline(),
+                            is_notifications_timeline = judge_notifications_timeline(),
+                            is_bookmarks_timeline = judge_bookmarks_timeline(),
+                            timeline_type;
+                        
+                        if ( is_profile_timeline || is_search_timeline || is_notifications_timeline || is_bookmarks_timeline ) {
+                            download_media_timeline( {
+                                is_for_likes_timeline : false,
+                                is_for_notifications_timeline : is_notifications_timeline,
+                                is_for_bookmarks_timeline : is_bookmarks_timeline,
+                                timeline_type : ( () => {
+                                    if ( is_profile_timeline ) return TIMELINE_TYPE.user;
+                                    if ( is_search_timeline ) return TIMELINE_TYPE.search;
+                                    if ( is_notifications_timeline ) return TIMELINE_TYPE.notifications;
+                                    if ( is_bookmarks_timeline ) return TIMELINE_TYPE.bookmarks;
+                                    return TIMELINE_TYPE.unknown;
+                                } )(),
+                            } );
+                            result = 'OK';
+                        }
+                        break;
+                    }
+                }
+            }
+            sendResponse( {
+                result : result,
+            } );
+            break;
+        }
     }
     return true;
 } );
@@ -256,6 +328,8 @@ w.twMediaDownloader_chrome_init = twMediaDownloader_chrome_init;
 w.async_get_values = async_get_values;
 w.async_set_values = async_set_values;
 w.extension_functions = extension_functions;
+
+send_content_scripts_info();
 
 } )( window, document );
 

@@ -98,4 +98,10 @@
 ,   "DOMATION" : {
         "message" : "贈り物 🎁 歓迎！"
     }
+,   "BULK_DOWNLOAD" : {
+        "message" : "一括ダウンロード"
+    }
+,   "BULK_DOWNLOAD_LIKES" : {
+        "message" : "「いいね」一括ダウンロード"
+    }
 }

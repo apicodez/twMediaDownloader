@@ -9,7 +9,6 @@ var SCRIPT_NAME = 'twMediaDownloader',
     DEBUG = false,
     CONTENT_TAB_INFOS = {};
 
-
 function log_debug() {
     if ( ! DEBUG ) {
         return;
@@ -20,10 +19,6 @@ function log_debug() {
 function log_error() {
     console.error.apply( console, arguments );
 } // end of log_error()
-
-
-w.log_debug = log_debug;
-w.log_error = log_error;
 
 
 function get_values( name_list ) {
@@ -94,9 +89,6 @@ var reload_tabs = ( () => {
         } );
     };
 } )();
-
-w.reload_tabs = reload_tabs;
-
 
 var request_tab_sorting = ( () => {
     var sort_index_to_tab_id_map_map = {},
@@ -274,6 +266,26 @@ function on_message( message, sender, sendResponse ) {
 }  // end of on_message()
 
 
+function bulk_download_request( tab, kind ) {
+    if ( ( ! tab ) || ( ! tab.id ) ) {
+        log_error( '[bulk_download_request()] tab error', tab, kind );
+        return;
+    }
+    
+    // TODO: tab.url を参照するためには permissions に "tabs" が必要なので、なるべく避けたい
+    // → とりあえず送ってみて反応を見る
+    chrome.tabs.sendMessage( tab.id, {
+        type : 'BULK_DOWNLOAD_REQUEST',
+        kind : kind,
+    }, ( response ) => {
+        log_debug( '[BULK_DOWNLOAD_REQUEST] response:', response );
+        if ( ( chrome.runtime.lastError ) || ( response === undefined ) || ( ! response.url ) ) {
+            return;
+        }
+    } );
+} // end of bulk_download_request()
+
+
 // ■ 各種イベント設定
 // [chrome.runtime - Google Chrome](https://developer.chrome.com/extensions/runtime)
 // [chrome.contextMenus - Google Chrome](https://developer.chrome.com/extensions/contextMenus)
@@ -340,6 +352,37 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 ,   { urls : [ '*://*.twitter.com/*' ] }
 ,   [ 'blocking', 'requestHeaders' ]
 );
+
+chrome.commands.onCommand.addListener( ( command ) => {
+    let callback;
+    
+    switch ( command ) {
+        case 'bulk_download' :
+            callback = ( active_tab ) => bulk_download_request( active_tab, 'media' );
+            break;
+        
+        case 'bulk_download_likes' :
+            callback = ( active_tab ) => bulk_download_request( active_tab, 'likes' );
+            break;
+        
+        default :
+            return;
+    }
+    
+    chrome.tabs.query( { active : true, currentWindow : true }, tabs => {
+        if ( tabs && tabs[ 0 ] ) {
+            callback( tabs[ 0 ] );
+        }
+    } );
+} );
+
+Object.assign( w, {
+    CONTENT_TAB_INFOS,
+    log_debug,
+    log_error,
+    reload_tabs,
+    bulk_download_request,
+} );
 
 } )( window, document );
 
