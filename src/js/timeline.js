@@ -8,7 +8,7 @@ const
 
 ( ( exports ) => {
 const
-    VERSION = '0.1.3',
+    VERSION = '0.1.4',
     
     DEFAULT_DEBUG_MODE = false,
     DEFAULT_SCRIPT_NAME = MODULE_NAME,
@@ -503,6 +503,7 @@ const
                         tweet_number : { default : 20, limit : 100 },
                         min_delay_ms : self.TWITTER_API_DELAY_SHORT,
                         max_retry : 3,
+                        max_retry_if_empty_result: 10,
                     },
                     
                     [ TIMELINE_TYPE.notifications ] : {
@@ -905,30 +906,45 @@ const
             }
             
             let count = options.count,
-                json = await TWITTER_API.fetch_search_timeline( query, count ).catch( ( error ) => {
+                max_retry_if_empty_result = options.max_retry_if_empty_result || TWITTER_API.API_DEFINITIONS[ TIMELINE_TYPE.search ].max_retry_if_empty_result, // TODO: Twitter側の問題で検索条件に合致するツイートが存在するにも関わらず結果が0で返ることがある→暫定的にリトライすることで対処
+                original_delay_min_delay_ms = TWITTER_API.API_DEFINITIONS[ TIMELINE_TYPE.search ].min_delay_ms,
+                json,
+                tweet_info_list = [];
+            
+            for (let retry_count=0; retry_count <= max_retry_if_empty_result; retry_count++) {
+                if (0 < retry_count) {
+                    TWITTER_API.API_DEFINITIONS[ TIMELINE_TYPE.search ].min_delay_ms = TWITTER_API.TWITTER_API_DELAY_SHORT; // 外部から間隔が調整されている場合でも、リトライ時には本来の間隔に戻す
+                }
+                json  = await TWITTER_API.fetch_search_timeline( query, count ).catch( ( error ) => {
                     log_error( 'TWITTER_API.fetch_user_timeline() error:', error );
                     return null;
                 } );
-            
-            if ( ! json ) {
-                return {
-                    json : null,
-                    error : 'fetch error',
-                };
-            }
-            
-            log_debug( 'get_search_timeline_info(): json=', json );
-            
-            let modules = json.modules;
-            
-            if ( ! Array.isArray( modules ) ) {
-                return {
-                    json : json,
-                    error : 'result JSON structure error',
-                };
-            }
-            
-            let tweet_info_list = modules.map( ( module ) => {
+                TWITTER_API.API_DEFINITIONS[ TIMELINE_TYPE.search ].min_delay_ms = original_delay_min_delay_ms;
+                
+                if ( ! json ) {
+                    return {
+                        json : null,
+                        error : 'fetch error',
+                    };
+                }
+                
+                log_debug( 'get_search_timeline_info(): json=', json );
+                
+                let modules = json.modules;
+                
+                if ( ! Array.isArray( modules ) ) {
+                    return {
+                        json : json,
+                        error : 'result JSON structure error',
+                    };
+                }
+                
+                if ( modules.length < 1 ) {
+                    log_debug( `get_search_timeline_info(): retry_count=${retry_count} => modules.length=${modules.length}, json=`, json );
+                    continue;
+                }
+                
+                tweet_info_list = modules.map( ( module ) => {
                     let tweet;
                     
                     try {
@@ -941,6 +957,9 @@ const
                     
                     return self.get_tweet_info_from_tweet_status( tweet );
                 } ).filter( tweet_info => tweet_info );
+                
+                break;
+            }
             
             return  {
                 json : json,
@@ -1941,7 +1960,6 @@ const
                 self.timeline_status = TIMELINE_STATUS.error;
                 return;
             }
-            
             let tweet_info_list = result.timeline_info.tweet_info_list;
             
             if ( tweet_info_list.length <= 0 ) {
