@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for TweetDeck
 // @description     Download media files on TweetDeck.
-// @version         0.1.4.9
+// @version         0.1.4.28
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://tweetdeck.twitter.com/*
@@ -909,8 +909,10 @@ var add_media_button_to_tweet = ( () => {
                 try {
                     //background_image = $element.css( 'background-image' ); // style="background-image: url()" のとき、'url("https://tweetdeck.twitter.com/")' が返されてしまう
                     background_image = $element.get( 0 ).style.backgroundImage;
-                    thumbnail_url = background_image.match( reg_url )[ 1 ].trim();
-                    
+                    thumbnail_url = $element.find( 'img.media-img' ).attr( 'src' );
+                    if ( ! thumbnail_url ) {
+                        thumbnail_url = background_image.match( reg_url )[ 1 ].trim();
+                    }
                     if ( ! thumbnail_url ) {
                         log_info( '* get_thumbnail_url() thumbnail-URL is empty * background-image:', background_image, 'tweet_id:', tweet_id );
                         // TODO: GIF動画などで、タイミングによっては style="background-image: url()" となるケース有り

@@ -1,16 +1,18 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.25
+// @version         0.1.4.28
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
+// @include         https://mobile.twitter.com/*
 // @include         https://api.twitter.com/*
 // @include         https://nazo.furyutei.work/oauth/*
 // @grant           GM_xmlhttpRequest
 // @grant           GM_setValue
 // @grant           GM_getValue
 // @grant           GM_deleteValue
+// @connect         mobile.twitter.com
 // @connect         twitter.com
 // @connect         twimg.com
 // @connect         cdn.vine.co
@@ -139,7 +141,7 @@ var SCRIPT_NAME = 'twMediaDownloader',
     DEBUG = false,
     self = undefined;
 
-if ( ! /^https:\/\/twitter\.com(?!\/account\/login_verification)/.test( w.location.href ) ) {
+if ( ! /^https:\/\/(?:mobile\.)?twitter\.com(?!\/account\/login_verification)/.test( w.location.href ) ) {
     if ( ( ! IS_CHROME_EXTENSION ) && ( typeof Twitter != 'undefined' ) ) {
         // Twitter OAuth 認証用ポップアップとして起動した場合は、Twitter.initialize() により tokens 取得用処理を実施（内部でTwitter.initializePopupWindow()を呼び出し）
         // ※ユーザースクリプトでの処理（拡張機能の場合、session.jsにて実施）
@@ -150,7 +152,7 @@ if ( ! /^https:\/\/twitter\.com(?!\/account\/login_verification)/.test( w.locati
     return;
 }
 
-if ( /^https:\/\/twitter\.com\/i\/cards/.test( w.location.href ) ) {
+if ( /^https:\/\/(?:mobile\.)?twitter\.com\/i\/cards/.test( w.location.href ) ) {
     // https://twitter.com/i/cards/～ では実行しない
     return;
 }
@@ -306,6 +308,7 @@ switch ( LANGUAGE ) {
         OPTIONS.DIALOG_DATE_RANGE_MARK = '＜ 日時 ＜';
         OPTIONS.DIALOG_DATE_PLACEHOLDER_LEFT = '下限日時';
         OPTIONS.DIALOG_DATE_PLACEHOLDER_RIGHT = '上限日時';
+        OPTIONS.DIALOG_DUPLICATE_WARNING = 'ダウンロードダイアログを閉じてから開き直してください';
         
         OPTIONS.MENTIONS_DOWNLOAD_BUTTON_TEXT_LONG = '@ツイート ⇩';
         OPTIONS.MENTIONS_DOWNLOAD_BUTTON_HELP_LONG = '通知(@ツイート)の画像/動画を保存';
@@ -344,6 +347,7 @@ switch ( LANGUAGE ) {
         OPTIONS.DIALOG_DATE_RANGE_MARK = '< DATETIME <';
         OPTIONS.DIALOG_DATE_PLACEHOLDER_LEFT = 'Since datetime';
         OPTIONS.DIALOG_DATE_PLACEHOLDER_RIGHT = 'Until datetime';
+        OPTIONS.DIALOG_DUPLICATE_WARNING = 'Close the download dialog and reopen it';
         
         OPTIONS.MENTIONS_DOWNLOAD_BUTTON_TEXT_LONG = 'Mentions ⇩';
         OPTIONS.MENTIONS_DOWNLOAD_BUTTON_HELP_LONG = 'Download images/videos of mentions from Notifications-timeline';
@@ -811,7 +815,7 @@ function get_tweet_id( url ) {
     
     url = url.trim();
     
-    if ( url.match( /^https?:\/\/twitter\.com\/[^\/]+\/[^\/]+\/(\d+)(?:$|\/)/ ) ) {
+    if ( url.match( /^https?:\/\/(?:mobile\.)?twitter\.com\/[^\/]+\/[^\/]+\/(\d+)(?:$|\/)/ ) ) {
         return RegExp.$1;
     }
     
@@ -3604,6 +3608,11 @@ var download_media_timeline = ( function () {
         //} );
         */
         
+        if ( MediaDownload.$container && MediaDownload.$container.is( ':visible' ) ) {
+            // 重複起動禁止（オプションメニューから要求された場合の対策）
+            alert( OPTIONS.DIALOG_DUPLICATE_WARNING );
+            return;
+        }
         MediaDownload.show_container( options );
     } // end of download_media_timeline()
     
