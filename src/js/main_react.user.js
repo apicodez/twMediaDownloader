@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.28
+// @version         0.1.4.29
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -2683,9 +2683,26 @@ var download_media_timeline = ( function () {
                         break;
                     
                     case TIMELINE_TYPE.search : {
-                            let specified_query = 
-                                    $( 'div[data-testid="primaryColumn"] form[role="search"] input[data-testid="SearchBox_Search_Input"]' ).val() ||
-                                    decodeURIComponent( get_url_info( w.location.href ).query_map[ 'q' ] || '' );
+                            let specified_query = ( () => {
+                                    const
+                                        filter_follows_keyword = 'filter:follows',
+                                        near_me_keyword = 'near:me';
+                                    
+                                    let url_info = get_url_info( w.location.href ),
+                                        query_map = url_info.query_map,
+                                        work_query = $( 'div[data-testid="primaryColumn"] form[role="search"] input[data-testid="SearchBox_Search_Input"]' ).val() ||
+                                            decodeURIComponent( query_map[ 'q' ] || '' ),
+                                        pf = query_map[ 'pf' ],
+                                        lf = query_map[ 'lf' ];
+                                    
+                                    if ( ( pf == 'on' ) && ( work_query.indexOf( filter_follows_keyword ) < 0 ) ) {
+                                        work_query += ' ' + filter_follows_keyword;
+                                    }
+                                    if ( ( lf == 'on' ) && ( work_query.indexOf( near_me_keyword ) < 0 ) ) {
+                                        work_query += ' ' + near_me_keyword;
+                                    }
+                                    return work_query;
+                                } )();
                             
                             TimelineObject = new ClassTimeline( {
                                 specified_query :  specified_query,
