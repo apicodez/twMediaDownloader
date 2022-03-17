@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.29
+// @version         0.1.4.30
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -750,7 +750,40 @@ function get_screen_name( url ) {
 
 
 function get_profile_container() {
-    return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div > div > div > span > span' );
+    //return $( 'div[data-testid="primaryColumn"] > div > div > div:first h2[role="heading"] > div > div > div > span > span' );
+    var $header = $( 'div[data-testid="primaryColumn"] h2[role="heading"]:first' );
+    
+    if ( $header.length < 1 ) {
+        return $();
+    }
+    
+    var $work = $header,
+        $child = $work.children( 'div:first' );
+    
+    while ( 0 < $child.length ) {
+        $work = $child;
+        $child = $work.children( 'div:first' );
+    }
+    
+    if ( ( $work.length < 1 ) || ( $work.get(0).tagName != 'DIV' ) ) {
+        return $();
+    }
+    
+    $child = $work.children( 'span:first' );
+    
+    while ( 0 < $child.length ) {
+        $work = $child;
+        if ( 1 < $work.children().length ) {
+            // 絵文字が含まれていたりするとSPAN, IMGがchildrenとして並ぶ
+            break;
+        }
+        $child = $work.children( 'span:first' );
+    }
+    
+    if ( ( $work.length < 1 ) || ( $work.get(0).tagName != 'SPAN' ) ) {
+        return $();
+    }
+    return $work;
 } // end of get_profile_container()
 
 
