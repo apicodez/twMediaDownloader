@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for new Twitter.com 2019
 // @description     Download media files on new Twitter.com 2019.
-// @version         0.1.4.30
+// @version         0.1.4.31
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://twitter.com/*
@@ -3951,11 +3951,13 @@ function parse_tweet( $tweet ) {
     var $tweet_time = $tweet.find( 'a[role="link"] time[datetime]' ).filter( function () {
             return $( this ).parents( 'div[role="link"]' ).length < 1;
         } ).first(),
-        is_individual_tweet = ( $tweet_time.length <= 0 ),
+        //is_individual_tweet = ( $tweet_time.length <= 0 ),
+        is_individual_tweet = ( $tweet.find( 'a[role="link"][href*="/status/"] ~ a[role="link"][href*="/help.twitter.com/"]' ).length > 0 ),
         $caret_menu_button = $tweet.find( '[role="button"][data-testid="caret"]' ).first(),
-        $source_label_container = ( is_individual_tweet ) ? $tweet.find( 'div[dir="auto"]' ).filter( function () {
-            return ( 0 < $( this ).children( 'a[role="link"][href*="/help.twitter.com/"]' ).length );
-        } ) : $(),
+        //$source_label_container = ( is_individual_tweet ) ? $tweet.find( 'div[dir="auto"]' ).filter( function () {
+        //    return ( 0 < $( this ).children( 'a[role="link"][href*="/help.twitter.com/"]' ).length );
+        //} ) : $(),
+        $source_label_container = ( is_individual_tweet ) ? $tweet.find( 'a[role="link"][href*="/help.twitter.com/"]' ).parent() : $(),
         $action_list_container = $tweet.find( 'div[role="group"]' ).first(),
         $quote_container = $tweet.find( 'div[role="link"]' ).first().parent(),
         $tweet_link = ( is_individual_tweet ) ? $source_label_container.find( 'a[role="link"][href^="/"][href*="/status/"]' ).first() : $tweet_time.parents( 'a[role="link"]' ).first(),
