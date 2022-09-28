@@ -4,10 +4,16 @@
 
 w.chrome = ( ( typeof browser != 'undefined' ) && browser.runtime ) ? browser : chrome;
 
-
 var SCRIPT_NAME = 'twMediaDownloader',
     DEBUG = false,
+    MANIFEST_VERSION = chrome.runtime.getManifest().manifest_version,
     CONTENT_TAB_INFOS = {};
+
+/*
+//if ( 2 < MANIFEST_VERSION ) {
+//    importScripts( './jszip.min.js', './zip_worker.js' );
+//}
+*/
 
 function log_debug() {
     if ( ! DEBUG ) {
@@ -258,10 +264,36 @@ function on_message( message, sender, sendResponse ) {
             } );
             return true;
         
-        default:
-            var flag_async = zip_request_handler( message, sender, sendResponse );
+        case 'GET_TAB_INFO' :
+            log_debug( 'GET_TAB_INFO', message );
             
-            return flag_async;
+            response = {
+                tab_info : CONTENT_TAB_INFOS[message.tab_id],
+            };
+            
+            sendResponse( response );
+            return true;
+        
+        case 'BULK_DOWNLOAD_REQUEST_FROM_OPTIONS' :
+            log_debug( 'BULK_DOWNLOAD_REQUEST_FROM_OPTIONS', message );
+            
+            bulk_download_request( message.tab, message.kind );
+            
+            sendResponse( {
+                result : 'OK', // 暫定的
+            } );
+            return true;
+        
+        default:
+            /*
+            //var flag_async = zip_request_handler( message, sender, sendResponse );
+            //return flag_async;
+            */
+            log_error( `Unsupported message: ${type}` );
+            sendResponse( {
+                result : 'NG',
+            } );
+            return true;
     }
 }  // end of on_message()
 
@@ -319,39 +351,47 @@ chrome.runtime.onMessage.addListener( on_message );
 //);
 
 
-var reg_oauth2_token = /^https:\/\/api\.twitter\.com\/oauth2\/token/,
-    reg_legacy_mark = /[?&]__tmdl=legacy(?:&|$)/;
-
-chrome.webRequest.onBeforeSendHeaders.addListener(
-    function ( details ) {
-        var requestHeaders,
-            url = details.url;
-        
-        if ( reg_oauth2_token.test( url ) ) {
-            // ※ OAuth2 の token 取得時(api.twitter.com/oauth2/token)に Cookie を送信しないようにする
-            requestHeaders = details.requestHeaders.filter( function ( element, index, array ) {
-                return ( element.name.toLowerCase() != 'cookie' );
-            } );
+if ( MANIFEST_VERSION < 3 ) {
+    const
+        reg_oauth2_token = /^https:\/\/api\.twitter\.com\/oauth2\/token/,
+        reg_legacy_mark = /[?&]__tmdl=legacy(?:&|$)/;
+    
+    chrome.webRequest.onBeforeSendHeaders.addListener(
+        function ( details ) {
+            var requestHeaders,
+                url = details.url;
+            
+            if ( reg_oauth2_token.test( url ) ) {
+                // ※ OAuth2 の token 取得時(api.twitter.com/oauth2/token)に Cookie を送信しないようにする
+                requestHeaders = details.requestHeaders.filter( function ( element, index, array ) {
+                    return ( element.name.toLowerCase() != 'cookie' );
+                } );
+            }
+            else if ( reg_legacy_mark.test( url ) ) {
+                // ※ "__tmdl=legacy" が付いている場合、旧 Twitter の HTML / API をコールするために User-Agent を変更
+                requestHeaders = details.requestHeaders.map( function ( element ) {
+                    if ( element.name.toLowerCase() == 'user-agent' ) {
+                        //element.value = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
+                        element.value = 'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) Waterfox/56.2';
+                        // 参考：[ZusorCode/GoodTwitter](https://github.com/ZusorCode/GoodTwitter)
+                    }
+                    return element;
+                } );
+            }
+            
+            //console.log( requestHeaders );
+            
+            return ( ( requestHeaders !== undefined ) ? { requestHeaders : requestHeaders } : {} );
         }
-        else if ( reg_legacy_mark.test( url ) ) {
-            // ※ "__tmdl=legacy" が付いている場合、旧 Twitter の HTML / API をコールするために User-Agent を変更
-            requestHeaders = details.requestHeaders.map( function ( element ) {
-                if ( element.name.toLowerCase() == 'user-agent' ) {
-                    //element.value = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
-                    element.value = 'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) Waterfox/56.2';
-                    // 参考：[ZusorCode/GoodTwitter](https://github.com/ZusorCode/GoodTwitter)
-                }
-                return element;
-            } );
-        }
-        
-        //console.log( requestHeaders );
-        
-        return ( ( requestHeaders !== undefined ) ? { requestHeaders : requestHeaders } : {} );
-    }
-,   { urls : [ '*://*.twitter.com/*' ] }
-,   [ 'blocking', 'requestHeaders' ]
-);
+    ,   { urls : [ '*://*.twitter.com/*' ] }
+    ,   [ 'blocking', 'requestHeaders' ]
+    );
+}
+else {
+    chrome.declarativeNetRequest.onRuleMatchedDebug.addListener( function ( obj ) {
+        log_debug( '[declarativeNetRequest.onRuleMatchedDebug]', obj.request.url, obj );
+    } );
+}
 
 chrome.commands.onCommand.addListener( ( command ) => {
     let callback;
@@ -384,6 +424,9 @@ Object.assign( w, {
     bulk_download_request,
 } );
 
-} )( window, document );
+} )(
+    ( typeof window !== 'undefined' ? window : self ),
+    ( typeof document !== 'undefined' ? document : self.document )
+);
 
 // ■ end of file

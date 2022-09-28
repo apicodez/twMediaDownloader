@@ -1,0 +1,24 @@
+[
+  {
+    "id": 20,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "cookie", "operation": "remove" }
+      ]
+    },
+    "condition": { "urlFilter": "||api.twitter.com/oauth2/token", "resourceTypes": ["main_frame", "sub_frame", "xmlhttprequest"] }
+  },
+  {
+    "id": 30,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "user-agent", "operation": "set", "value": "Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) Waterfox/56.2" }
+      ]
+    },
+    "condition": { "regexFilter": "^https?://([^.]*\\.)?twitter\\.com/.*?[?&]__tmdl=legacy(?:&|$)", "resourceTypes": ["main_frame", "sub_frame", "xmlhttprequest"] }
+  }
+]

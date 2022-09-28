@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitter Media Downloader for TweetDeck
 // @description     Download media files on TweetDeck.
-// @version         0.1.4.28
+// @version         0.1.5.0
 // @namespace       https://memo.furyutei.work/
 // @author          furyu
 // @include         https://tweetdeck.twitter.com/*
@@ -107,7 +107,7 @@ var OPTIONS = {
     DEFAULT_INCLUDE_RETWEETS : false, // true: RTを含む
     DEFAULT_SUPPORT_NOMEDIA : false, // false: メディアを含まないツイートもログ・CSVやCSVに記録する
     DEFAULT_DRY_RUN : false, // true: 走査のみ
-    ENABLE_ZIPREQUEST : true, // true: ZipRequest を使用してバックグラウンドでダウンロード＆アーカイブ(拡張機能の場合)
+    ENABLE_ZIPREQUEST : false, // true: ZipRequest を使用してバックグラウンドでダウンロード＆アーカイブ(拡張機能の場合)
     INCOGNITO_MODE : false, // true: 秘匿モード（シークレットウィンドウ内で起動・拡張機能の場合のみ）
     // TODO: Firefox でシークレットウィンドウ内で実行する場合、ENABLE_ZIPREQUEST が true だと zip_request.generate() で失敗
     // → 暫定的に、判別して ZipRequest を使用しないようにする

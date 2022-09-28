@@ -32,6 +32,7 @@ module.exports = {
         "async_get_values": "readonly",
         "extension_functions": "readonly",
         "BigInt": "readonly",
+        "importScripts": "readonly",
     },
     "parserOptions": {
         "ecmaVersion": 2020

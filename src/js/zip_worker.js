@@ -1,4 +1,4 @@
-( function () {
+( function ( window ) {
 
 'use strict';
 
@@ -289,4 +289,6 @@ function zip_request_handler( message, sender, sendResponse ) {
 
 window.zip_request_handler = zip_request_handler;
 
-} )();
+} )(
+    ( typeof window !== 'undefined' ? window : self )
+);
