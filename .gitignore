@@ -1,6 +1,6 @@
 debug/*
 archives/*
-src/_metadata/*
+#src/_metadata/*
 
 #===============================================================================
 # $ gibo dump Windows Linux macOS Node >> .gitignore
@@ -58,7 +58,7 @@ $RECYCLE.BIN/
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
 
 # Thumbnails
 ._*

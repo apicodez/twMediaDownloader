@@ -1,8 +1,8 @@
 {
-    "manifest_version" : 3
+    "manifest_version" : 2
 ,   "name" : "__MSG_ext_title__"
 ,   "short_name" : "__MSG_ext_short_name__"
-,   "version" : "0.1.5.0"
+,   "version" : "0.1.5.2"
 ,   "description" : "__MSG_ext_description__"
 ,   "author" : "furyu"
 ,   "default_locale" : "en"
@@ -12,23 +12,7 @@
     ,   "48" : "img/icon_48.png"
     ,   "128" : "img/icon_128.png"
     }
-,   "permissions" : [
-        "storage",
-        "declarativeNetRequest",
-        "declarativeNetRequestFeedback"
-    ]
-,   "host_permissions" : [
-        "*://*.twitter.com/*", "*://pbs.twimg.com/*", "*://video.twimg.com/*", "*://*.cdn.vine.co/*"
-    ]
-,   "declarative_net_request": {
-        "rule_resources": [
-            {
-                "id": "ruleset",
-                "enabled": true,
-                "path": "ruleset.json"
-            }
-        ]
-    }
+,   "permissions": [ "storage", "webRequest", "webRequestBlocking", "*://*.twitter.com/*", "*://pbs.twimg.com/*", "*://video.twimg.com/*", "*://*.cdn.vine.co/*" ]
 ,   "content_scripts" : [
         {
             "matches" : [ "*://twitter.com/*", "*://tweetdeck.twitter.com/*", "*://api.twitter.com/*", "*://pbs.twimg.com/media/*", "*://mobile.twitter.com/*" ]
@@ -55,14 +39,15 @@
         ,   "all_frames" : true
         }
     ]
-,   "background" : {
-        "service_worker" : "js/background.js"
+,   "background": {
+        "scripts" : [ "js/background.js" ]
+    ,   "persistent" : true
     }
 ,   "options_ui" : {
         "page" : "html/options.html"
     ,   "open_in_tab" : true
     }
-,   "action" : {
+,   "browser_action" : {
         "default_icon" : "img/icon_16.png"
     ,   "default_title" : "__MSG_ext_title__"
     ,   "default_popup" : "html/options.html"
