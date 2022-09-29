@@ -1,6 +1,6 @@
 debug/*
 archives/*
-#src/_metadata/*
+src/_metadata/*
 
 #===============================================================================
 # $ gibo dump Windows Linux macOS Node >> .gitignore

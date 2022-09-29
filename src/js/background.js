@@ -388,9 +388,19 @@ if ( MANIFEST_VERSION < 3 ) {
     );
 }
 else {
-    chrome.declarativeNetRequest.onRuleMatchedDebug.addListener( function ( obj ) {
-        log_debug( '[declarativeNetRequest.onRuleMatchedDebug]', obj.request.url, obj );
-    } );
+    // TODO: なぜか Chrome Web Store からインストールしたものだと
+    // TypeError: Cannot read properties of undefined (reading 'addListener')
+    // というエラーが発生（デベロッパーモードで[パッケージ化されていない拡張機能を読み込む]からの場合は発生しない）
+    if ( typeof chrome.declarativeNetRequest?.onRuleMatchedDebug?.addListener == 'function' ) {
+        try {
+            chrome.declarativeNetRequest.onRuleMatchedDebug.addListener( function ( obj ) {
+                log_debug( '[declarativeNetRequest.onRuleMatchedDebug]', obj.request.url, obj );
+            } );
+        }
+        catch ( error ) {
+            log_error( error );
+        }
+    }
 }
 
 chrome.commands.onCommand.addListener( ( command ) => {
