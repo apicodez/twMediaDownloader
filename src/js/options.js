@@ -38,7 +38,7 @@ function request_reload_tabs( forced = false ) {
         chrome.runtime.sendMessage( {
             type : `TEST-${d.visibilityState}-*** ${test_event_type} ***`,
         }, function ( response ) {
-            background_window.log_debug( response, '< RELOAD_TABS event done >' );
+            background_window.log_debug( response, '< TEST event done >' );
         } );
     }
     
@@ -240,15 +240,6 @@ $( async function () {
             $bulk_download_likes_button.show();
         }
     }
-    
-    $( 'input[name="DEFAULT"]' ).click( async function () {
-        await remove_values( OPTION_KEY_LIST );
-        value_updated = true;
-        
-        await set_all_evt();
-        //location.reload();
-    } );
-    
     
     STR_KV_LIST.forEach( function( str_kv ) {
         str_kv.val = chrome.i18n.getMessage( str_kv.key );
