@@ -325,83 +325,92 @@ function bulk_download_request( tab, kind ) {
 // メッセージ受信
 chrome.runtime.onMessage.addListener( on_message );
 
-// WebRequest
-
-//// ※ Firefox 61.0.1 で、content_scripts で $.ajax() を読んだ際、Referer が設定されない不具合に対応(0.2.6.1201)
-// → jquery.js にパッチをあてることで対処(0.2.6.1202)
-// 参照：[Content scripts - Mozilla | MDN](https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Content_scripts#XHR_and_Fetch)
-//chrome.webRequest.onBeforeSendHeaders.addListener(
-//    function ( details ) {
-//        var requestHeaders = details.requestHeaders,
-//            referer;
-//        
-//        if ( ! requestHeaders.some( ( element ) => ( element.name.toLowerCase() == 'referer' ) ) ) {
-//            referer = details.documentUrl || 'https://twitter.com';
+/*
+//[2022.09.30] 現状では未使用な機能（api.twitter.com/oauth2/tokenへのアクセス時のcookie削除、旧Twitter("__tmdl=legacy")サポート）のコメントアウト
+//if ( MANIFEST_VERSION < 3 ) {
+//    // [webRequest]
+//    
+//    //// ※ Firefox 61.0.1 で、content_scripts で $.ajax() を読んだ際、Referer が設定されない不具合に対応(0.2.6.1201)
+//    // → jquery.js にパッチをあてることで対処(0.2.6.1202)
+//    // 参照：[Content scripts - Mozilla | MDN](https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Content_scripts#XHR_and_Fetch)
+//    //chrome.webRequest.onBeforeSendHeaders.addListener(
+//    //    function ( details ) {
+//    //        var requestHeaders = details.requestHeaders,
+//    //            referer;
+//    //        
+//    //        if ( ! requestHeaders.some( ( element ) => ( element.name.toLowerCase() == 'referer' ) ) ) {
+//    //            referer = details.documentUrl || 'https://twitter.com';
+//    //            
+//    //            requestHeaders.push( {
+//    //                name : 'Referer',
+//    //                value : referer,
+//    //            } );
+//    //        }
+//    //        
+//    //        return { requestHeaders: requestHeaders };
+//    //    }
+//    //,   { urls : [ '*://twitter.com/*' ] }
+//    //,   [ 'blocking', 'requestHeaders' ]
+//    //);
+//    
+//    const
+//        reg_oauth2_token = /^https:\/\/api\.twitter\.com\/oauth2\/token/,
+//        reg_legacy_mark = /[?&]__tmdl=legacy(?:&|$)/;
+//    
+//    chrome.webRequest.onBeforeSendHeaders.addListener(
+//        function ( details ) {
+//            var requestHeaders,
+//                url = details.url;
 //            
-//            requestHeaders.push( {
-//                name : 'Referer',
-//                value : referer,
+//            if ( reg_oauth2_token.test( url ) ) {
+//                // ※ OAuth2 の token 取得時(api.twitter.com/oauth2/token)に Cookie を送信しないようにする
+//                requestHeaders = details.requestHeaders.filter( function ( element, index, array ) {
+//                    return ( element.name.toLowerCase() != 'cookie' );
+//                } );
+//            }
+//            else if ( reg_legacy_mark.test( url ) ) {
+//                // ※ "__tmdl=legacy" が付いている場合、旧 Twitter の HTML / API をコールするために User-Agent を変更
+//                requestHeaders = details.requestHeaders.map( function ( element ) {
+//                    if ( element.name.toLowerCase() == 'user-agent' ) {
+//                        //element.value = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
+//                        element.value = 'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) Waterfox/56.2';
+//                        // 参考：[ZusorCode/GoodTwitter](https://github.com/ZusorCode/GoodTwitter)
+//                    }
+//                    return element;
+//                } );
+//            }
+//            
+//            //console.log( requestHeaders );
+//            
+//            return ( ( requestHeaders !== undefined ) ? { requestHeaders : requestHeaders } : {} );
+//        }
+//    ,   { urls : [ '*://*.twitter.com/*' ] }
+//    ,   [ 'blocking', 'requestHeaders' ]
+//    );
+//}
+//else {
+//    // [declarativeNetRequest]
+//    
+//    // Chrome Web Store からインストールしたものだと
+//    // TypeError: Cannot read properties of undefined (reading 'addListener')
+//    // というエラーが発生（デベロッパーモードで[パッケージ化されていない拡張機能を読み込む]からの場合は発生しない）
+//    // →もともとの仕様らしい
+//    //   https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#event-onRuleMatchedDebug
+//    //   > onRuleMatchedDebug
+//    //   > Fired when a rule is matched with a request.
+//    //   > Only available for unpacked extensions with the declarativeNetRequestFeedback permission as this is intended to be used for debugging purposes only.
+//    if ( typeof chrome.declarativeNetRequest?.onRuleMatchedDebug?.addListener == 'function' ) {
+//        try {
+//            chrome.declarativeNetRequest.onRuleMatchedDebug.addListener( function ( obj ) {
+//                log_debug( '[declarativeNetRequest.onRuleMatchedDebug]', obj.request.url, obj );
 //            } );
 //        }
-//        
-//        return { requestHeaders: requestHeaders };
+//        catch ( error ) {
+//            log_error( error );
+//        }
 //    }
-//,   { urls : [ '*://twitter.com/*' ] }
-//,   [ 'blocking', 'requestHeaders' ]
-//);
-
-
-if ( MANIFEST_VERSION < 3 ) {
-    const
-        reg_oauth2_token = /^https:\/\/api\.twitter\.com\/oauth2\/token/,
-        reg_legacy_mark = /[?&]__tmdl=legacy(?:&|$)/;
-    
-    chrome.webRequest.onBeforeSendHeaders.addListener(
-        function ( details ) {
-            var requestHeaders,
-                url = details.url;
-            
-            if ( reg_oauth2_token.test( url ) ) {
-                // ※ OAuth2 の token 取得時(api.twitter.com/oauth2/token)に Cookie を送信しないようにする
-                requestHeaders = details.requestHeaders.filter( function ( element, index, array ) {
-                    return ( element.name.toLowerCase() != 'cookie' );
-                } );
-            }
-            else if ( reg_legacy_mark.test( url ) ) {
-                // ※ "__tmdl=legacy" が付いている場合、旧 Twitter の HTML / API をコールするために User-Agent を変更
-                requestHeaders = details.requestHeaders.map( function ( element ) {
-                    if ( element.name.toLowerCase() == 'user-agent' ) {
-                        //element.value = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
-                        element.value = 'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) Waterfox/56.2';
-                        // 参考：[ZusorCode/GoodTwitter](https://github.com/ZusorCode/GoodTwitter)
-                    }
-                    return element;
-                } );
-            }
-            
-            //console.log( requestHeaders );
-            
-            return ( ( requestHeaders !== undefined ) ? { requestHeaders : requestHeaders } : {} );
-        }
-    ,   { urls : [ '*://*.twitter.com/*' ] }
-    ,   [ 'blocking', 'requestHeaders' ]
-    );
-}
-else {
-    // TODO: なぜか Chrome Web Store からインストールしたものだと
-    // TypeError: Cannot read properties of undefined (reading 'addListener')
-    // というエラーが発生（デベロッパーモードで[パッケージ化されていない拡張機能を読み込む]からの場合は発生しない）
-    if ( typeof chrome.declarativeNetRequest?.onRuleMatchedDebug?.addListener == 'function' ) {
-        try {
-            chrome.declarativeNetRequest.onRuleMatchedDebug.addListener( function ( obj ) {
-                log_debug( '[declarativeNetRequest.onRuleMatchedDebug]', obj.request.url, obj );
-            } );
-        }
-        catch ( error ) {
-            log_error( error );
-        }
-    }
-}
+//}
+*/
 
 chrome.commands.onCommand.addListener( ( command ) => {
     let callback;
